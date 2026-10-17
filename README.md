@@ -10,7 +10,7 @@ Built in Los Angeles for the rentals section of [n8dog.com](https://n8dog.com/re
 
 ## Status: prototype
 
-The reports in this repo are hand-built mockups for three downtown Los Angeles
+The reports in this repo are hand-built mockups for three Los Angeles
 addresses. They show what the finished report looks like. The Python package
 that builds one from live data is the next thing to land here.
 
@@ -19,14 +19,14 @@ that builds one from live data is the next thing to land here.
 | path | what it is |
 |---|---|
 | `living-insider-548-spring.html` | prototype report, 548 S Spring St |
-| `living-insider-671-macarthur.html` | prototype report, MacArthur Park |
+| `living-insider-671-macarthur.html` | prototype report, 671 MacArthur Ave |
 | `living-insider-midnight-mission.html` | prototype report, Skid Row |
 | `raw/` | the raw versions of the same three reports |
 | `schema-skidrow.md`, `schema-westside.md` | the data model, two neighborhoods |
 | `json_snippet.json` | a sample of the report data shape |
 | `docs/` | images for this page |
 
-Open any of the HTML files in a browser. That is the whole demo.
+Open any of the HTML files in a browser, or open them live from the links at the bottom of this page. That is the whole demo.
 
 ## What a report covers
 
@@ -73,3 +73,21 @@ parcel data, it can have a report. Open an issue with the dataset links.
 ## License
 
 MIT. See LICENSE.
+
+## Skid Row vs 671 MacArthur
+
+![Skid Row vs 671 MacArthur](docs/skidrow-vs-671.png)
+
+Same nine questions, asked at two doors twelve miles apart. I have slept on
+the street in both of these places. That is who this report is written for.
+
+**Both reports side by side, each in its own panel:**
+[skidrow-vs-671.html](https://ctoxyz.github.io/n8spotsecrets/skidrow-vs-671.html)
+
+| Skid Row, 601 S San Pedro St | 671 MacArthur Ave, Sawtelle |
+|---|---|
+| [open live](https://ctoxyz.github.io/n8spotsecrets/living-insider-midnight-mission.html) / [source](living-insider-midnight-mission.html) | [open live](https://ctoxyz.github.io/n8spotsecrets/living-insider-671-macarthur.html) / [source](living-insider-671-macarthur.html) |
+| [![Skid Row report](docs/report-skidrow.png)](https://ctoxyz.github.io/n8spotsecrets/living-insider-midnight-mission.html) | [![671 MacArthur report](docs/report-671-macarthur.png)](https://ctoxyz.github.io/n8spotsecrets/living-insider-671-macarthur.html) |
+
+The third prototype, 548 S Spring St downtown:
+[open live](https://ctoxyz.github.io/n8spotsecrets/living-insider-548-spring.html) / [source](living-insider-548-spring.html).
