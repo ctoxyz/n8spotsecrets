@@ -1,0 +1,106 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Address Dossier Insider Report",
+  "type": "object",
+  "properties": {
+    "reportMetadata": {
+      "type": "object",
+      "description": "General information about the report generation",
+      "properties": {
+        "generatedAt": { "type": "string", "format": "date-time" },
+        "address": { "type": "string" },
+        "geoCoordinates": { "type": "object", "properties": { "lat": { "type": "number" }, "lon": { "type": "number" } } },
+        "dataFreshness": { "type": "object", "description": "Last update for each data source category" }
+      }
+    },
+    "noiseDisruptions": {
+      "type": "object",
+      "properties": {
+        "overallRating": { "type": "string", "enum": ["🔴 Very Loud", "🟠 Noticeable", "🟡 Moderate", "🟢 Quiet"] },
+        "freewayNoise": { "type": "string" },
+        "airportNoise": { "type": "string" },
+        "barNightlifeNoise": { "type": "string" },
+        "constructionActivity": { "type": "string" },
+        "neighborNoiseComplaints": { "type": "array", "items": { "type": "string" } },
+        "insiderTips": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "neighborsCommunityVibe": {
+      "type": "object",
+      "properties": {
+        "overallRating": { "type": "string", "enum": ["🟢 Friendly", "🟠 Mixed", "🔴 Hostile"] },
+        "communityEngagement": { "type": "string", "description": "Block parties, neighborhood watch, etc." },
+        "problemProperties": { "type": "array", "items": { "type": "string" } },
+        "sexOffenderPresence": { "type": "string" },
+        "socialMediaSentiment": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "schools": {
+      "type": "object",
+      "properties": {
+        "assignedPublicSchools": { "type": "array", "items": { "type": "object", "properties": { "name": { "type": "string" }, "rating": { "type": "number" }, "insiderNotes": { "type": "string" } } } },
+        "privateOptions": { "type": "array", "items": { "type": "string" } },
+        "childrenInArea": { "type": "string" }
+      }
+    },
+    "crimeSafety": {
+      "type": "object",
+      "properties": {
+        "overallRating": { "type": "string", "enum": ["🟢 Low", "🟡 Moderate", "🟠 High", "🔴 Extreme"] },
+        "crimeTypesBreakdown": { "type": "object", "properties": { "violent": { "type": "number" }, "property": { "type": "number" } } },
+        "trendDirection": { "type": "string", "enum": ["Increasing", "Stable", "Decreasing"] },
+        "futureOutlook": { "type": "string" }
+      }
+    },
+    "connectivityTelecom": {
+      "type": "object",
+      "properties": {
+        "availableISPs": { "type": "array", "items": { "type": "object", "properties": { "provider": { "type": "string" }, "maxSpeed": { "type": "string" }, "technology": { "type": "string" } } } },
+        "userReportedReliability": { "type": "array", "items": { "type": "string" } },
+        "cellCoverageAssessment": { "type": "string" }
+      }
+    },
+    "pestAndVerminHistory": {
+      "type": "object",
+      "properties": {
+        "addressSpecificComplaints": { "type": "array", "items": { "type": "string" } },
+        "blockLevelTrends": { "type": "string" },
+        "healthAdvisories": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "naturalHazardRisk": {
+      "type": "object",
+      "properties": {
+        "floodZone": { "type": "string" },
+        "earthquakeLiquefaction": { "type": "boolean" },
+        "wildfireSeverity": { "type": "string" },
+        "otherHazards": { "type": "array", "items": { "type": "string" } },
+        "insuranceImplications": { "type": "string" }
+      }
+    },
+    "amenitiesWalkability": {
+      "type": "object",
+      "properties": {
+        "walkScore": { "type": "number" },
+        "groceryStores": { "type": "array", "items": { "type": "string" } },
+        "greenSpaces": { "type": "array", "items": { "type": "string" } },
+        "foodDesertStatus": { "type": "boolean" }
+      }
+    },
+    "futureDevelopments": {
+      "type": "object",
+      "properties": {
+        "plannedConstruction": { "type": "array", "items": { "type": "string" } },
+        "zoningChanges": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "ownerRentalInsider": {
+      "type": "object",
+      "properties": {
+        "landlordReputation": { "type": "string" },
+        "hoaHealth": { "type": "string", "description": "If applicable" },
+        "evictionHistory": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

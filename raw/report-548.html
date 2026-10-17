@@ -1,0 +1,490 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Living Insider — 548 S Spring St, Los Angeles 90013</title>
+<style>
+  :root{
+    --ink:#0e1116;
+    --panel:#151a21;
+    --panel-2:#1a212b;
+    --line:#242d39;
+    --text:#e9ecf1;
+    --muted:#9aa4b1;
+    --faint:#5f6b7a;
+    --street:#e8a33d;
+    --go:#58c08a;
+    --caution:#e0b34f;
+    --alert:#e0685f;
+    --data:#6ea8d9;
+    --mono:"Cascadia Code","JetBrains Mono",ui-monospace,Consolas,monospace;
+    --ui:"Segoe UI",ui-sans-serif,system-ui,-apple-system,Roboto,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--ink);color:var(--text);font-family:var(--ui);font-size:15px;line-height:1.6}
+  .wrap{max-width:1060px;margin:0 auto;padding:0 28px}
+  ::selection{background:rgba(232,163,61,.3)}
+
+  .hero{padding:52px 0 0;border-bottom:1px solid var(--line)}
+  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--street);display:flex;align-items:center;gap:12px}
+  .eyebrow::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,var(--street),transparent)}
+  h1{font-size:clamp(30px,4.6vw,52px);font-weight:800;letter-spacing:-.02em;line-height:1.05;margin:14px 0 6px}
+  h1 .num{color:var(--street)}
+  .sub{color:var(--muted);font-size:15.5px;max-width:660px;margin:0 0 18px}
+  .chiprow{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 26px}
+  .chip{font-family:var(--mono);font-size:11.5px;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:5px 12px}
+  .chip b{color:var(--text);font-weight:600}
+  .chip.hot b{color:var(--alert)}
+  .simnote{display:inline-flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11px;color:var(--caution);
+    border:1px dashed rgba(224,179,79,.5);border-radius:8px;padding:6px 12px;margin-bottom:26px}
+
+  .mapcard{background:var(--panel);border:1px solid var(--line);border-radius:16px 16px 0 0;border-bottom:none;padding:10px 10px 0;overflow:hidden}
+  .mapcard svg{display:block;width:100%;height:auto}
+  .maplegend{display:flex;flex-wrap:wrap;gap:18px;padding:10px 16px 14px;font-family:var(--mono);font-size:10.5px;color:var(--faint)}
+  .maplegend span{display:inline-flex;align-items:center;gap:7px}
+  .sw{width:14px;height:4px;border-radius:2px;display:inline-block}
+  @keyframes ping{0%{r:6}50%{r:9}100%{r:6}}
+  .pin{animation:ping 2.2s ease-in-out infinite}
+  @media (prefers-reduced-motion:reduce){.pin{animation:none}}
+
+  /* scoreboard */
+  .scoreboard{
+    display:flex; gap:40px; justify-content:center;
+    padding:40px 0 24px; border-bottom:1px solid var(--line);
+  }
+  .score{text-align:center}
+  .score .num{
+    font-size:64px; font-weight:800; letter-spacing:-.02em; line-height:1;
+    margin-bottom:8px;
+  }
+  .score .lbl{
+    font-family:var(--mono); font-size:11px; letter-spacing:.12em;
+    text-transform:uppercase; color:var(--faint);
+  }
+  .score.livable .num{color:var(--caution); text-shadow:0 0 18px rgba(224,179,79,.3);}
+  .score.safe .num{color:var(--caution); text-shadow:0 0 18px rgba(224,179,79,.3);}
+  .score.connected .num{color:var(--go); text-shadow:0 0 18px rgba(88,192,138,.3);}
+  @media (max-width:600px){.scoreboard{gap:20px}.score .num{font-size:48px}}
+
+  .board{padding:34px 0 8px}
+  .board h2, section h2{font-size:13px;font-family:var(--mono);letter-spacing:.2em;text-transform:uppercase;color:var(--faint);margin:0 0 18px;display:flex;align-items:center;gap:12px}
+  .board h2::after, section h2::after{content:'';flex:1;height:1px;background:var(--line)}
+  .siggrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:10px}
+  .sig{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:13px 15px;display:flex;align-items:center;gap:12px}
+  .lamp{width:11px;height:11px;border-radius:50%;flex:0 0 auto}
+  .lamp.go{background:var(--go);box-shadow:0 0 10px rgba(88,192,138,.55)}
+  .lamp.caution{background:var(--caution);box-shadow:0 0 10px rgba(224,179,79,.55)}
+  .lamp.alert{background:var(--alert);box-shadow:0 0 10px rgba(224,104,95,.6)}
+  .lamp.info{background:var(--data);box-shadow:0 0 10px rgba(110,168,217,.5)}
+  .sig .n{font-size:13.5px;font-weight:600}
+  .sig .v{font-family:var(--mono);font-size:10.5px;color:var(--faint);margin-top:1px}
+
+  section{padding:34px 0 6px}
+  .cards{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media (max-width:820px){.cards{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px 22px;position:relative}
+  .card.wide{grid-column:1 / -1}
+  .stamp{position:absolute;top:18px;right:18px;font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;
+    border:1.5px solid;border-radius:6px;padding:3px 9px;transform:rotate(-2deg)}
+  .stamp.go{color:var(--go);border-color:rgba(88,192,138,.6)}
+  .stamp.caution{color:var(--caution);border-color:rgba(224,179,79,.6)}
+  .stamp.alert{color:var(--alert);border-color:rgba(224,104,95,.6)}
+  .stamp.info{color:var(--data);border-color:rgba(110,168,217,.55)}
+  .card h3{margin:0 0 4px;font-size:17.5px;font-weight:700;letter-spacing:-.01em;padding-right:118px}
+  .card .verdict{font-family:var(--mono);font-size:11px;color:var(--muted);margin-bottom:14px}
+  .card ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:10px}
+  .card li{padding-left:16px;position:relative;color:var(--muted);font-size:14px}
+  .card li::before{content:'';position:absolute;left:0;top:9px;width:6px;height:6px;border-radius:2px;background:var(--faint)}
+  .card li b{color:var(--text);font-weight:600}
+  .tip{margin-top:14px;background:var(--panel-2);border-left:3px solid var(--street);border-radius:0 10px 10px 0;padding:11px 14px;font-size:13.5px;color:var(--muted)}
+  .tip.hard{border-left-color:var(--alert)}
+  .tip .t{font-family:var(--mono);font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--street);display:block;margin-bottom:4px}
+  .tip.hard .t{color:var(--alert)}
+  .src{font-family:var(--mono);font-size:10px;color:var(--faint)}
+
+  .statrow{display:flex;gap:22px;flex-wrap:wrap;margin:6px 0 14px}
+  .bignum{display:flex;flex-direction:column}
+  .bignum .x{font-size:30px;font-weight:800;letter-spacing:-.02em;line-height:1}
+  .bignum .x.hot{color:var(--alert)}
+  .bignum .l{font-family:var(--mono);font-size:10px;color:var(--faint);margin-top:5px;letter-spacing:.08em;text-transform:uppercase}
+  .bar{display:flex;flex-direction:column;gap:8px;margin-top:6px}
+  .bar .row{display:grid;grid-template-columns:150px 1fr 56px;gap:10px;align-items:center;font-size:12.5px;color:var(--muted)}
+  .bar .trk{height:9px;background:var(--panel-2);border-radius:5px;overflow:hidden}
+  .bar .fil{height:100%;border-radius:5px}
+  .bar .val{font-family:var(--mono);font-size:11px;color:var(--text);text-align:right}
+  .dial{display:flex;align-items:center;gap:16px}
+  .dial svg{flex:0 0 auto}
+  .dial .cap{font-size:13.5px;color:var(--muted)}
+  .clock{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px}
+  .clock .seg{background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+  .clock .seg .h{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px;display:flex;align-items:center;gap:7px}
+  .clock .day .h{color:var(--caution)}
+  .clock .night .h{color:var(--alert)}
+  .clock .seg p{margin:0;font-size:13px;color:var(--muted)}
+
+  .srcgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:10px}
+  .srcbox{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:15px 17px}
+  .srcbox .k{display:flex;align-items:baseline;gap:10px;margin-bottom:8px}
+  .srcbox .k b{font-size:13.5px}
+  .srcbox .k .ct{font-family:var(--mono);font-size:10px;color:var(--data)}
+  .srcbox p{margin:0;font-size:12.5px;color:var(--faint);line-height:1.55}
+
+  .rail{display:grid;grid-template-columns:repeat(4,1fr);gap:0;margin-top:6px}
+  @media (max-width:820px){.rail{grid-template-columns:1fr}}
+  .step{position:relative;padding:0 18px 6px 0}
+  .step::before{content:'';position:absolute;top:7px;left:0;right:6px;height:2px;background:var(--line)}
+  .step::after{content:'';position:absolute;top:3px;left:0;width:10px;height:10px;border-radius:50%;background:var(--street)}
+  .step .t{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--street);margin:20px 0 5px}
+  .step .d{font-size:12.5px;color:var(--muted)}
+  .step .f{font-family:var(--mono);font-size:10px;color:var(--faint);margin-top:5px}
+
+  .foot{margin:44px 0 0;border-top:1px solid var(--line);padding:22px 0 46px}
+  .foot .cols{display:grid;grid-template-columns:1fr 1fr;gap:8px 40px;font-size:12px;color:var(--faint)}
+  @media (max-width:820px){.foot .cols{grid-template-columns:1fr}}
+  .foot .cols div{padding-left:18px;position:relative}
+  .foot .cols div::before{content:attr(data-n);position:absolute;left:0;font-family:var(--mono);font-size:10px;color:var(--data)}
+  .foot .disc{font-family:var(--mono);font-size:10.5px;color:var(--caution);margin-top:22px;line-height:1.7}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="eyebrow">Living Insider · Sample Dossier</div>
+    <h1><span class="num">548</span> S Spring St<br>Los Angeles, CA 90013</h1>
+    <p class="sub">The real story of a loft‑forward address in the Historic Core — where 1920s banks became apartments, and the sidewalk energy doesn’t quit.</p>
+    <div class="chiprow">
+      <span class="chip">Area <b>Historic Core · DTLA</b></span>
+      <span class="chip">Type <b>Adaptive‑reuse loft</b></span>
+      <span class="chip">Walk Score <b>95 / 100</b></span>
+      <span class="chip">Crime trend <b>property crime flat, violent down</b></span>
+      <span class="chip">Data window <b>Jun 2023 – Jun 2024</b></span>
+    </div>
+    <div class="simnote">⚠ Simulated report — production claims link to real‑time data and public records</div>
+
+    <div class="mapcard">
+      <svg viewBox="0 0 1020 240" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Street schematic: 548 S Spring St between 5th and 6th, Pershing Square to the west, Metro station nearby">
+        <defs>
+          <linearGradient id="buzz" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stop-color="#e0b34f" stop-opacity=".05"/>
+            <stop offset=".5" stop-color="#e0b34f" stop-opacity=".18"/>
+            <stop offset="1" stop-color="#e0b34f" stop-opacity=".05"/>
+          </linearGradient>
+        </defs>
+        <rect x="0" y="0" width="1020" height="240" fill="url(#buzz)"/>
+        <!-- 5th St -->
+        <rect x="0" y="26" width="1020" height="15" fill="#1a212b"/>
+        <text x="14" y="21" fill="#5f6b7a" font-family="Cascadia Code,monospace" font-size="11">E 5th St</text>
+        <!-- 6th St -->
+        <rect x="0" y="118" width="1020" height="17" fill="#1e2630"/>
+        <text x="14" y="112" fill="#9aa4b1" font-family="Cascadia Code,monospace" font-size="11">E 6th St</text>
+        <!-- 7th St -->
+        <rect x="0" y="206" width="1020" height="15" fill="#1a212b"/>
+        <text x="14" y="201" fill="#5f6b7a" font-family="Cascadia Code,monospace" font-size="11">E 7th St</text>
+        <!-- Spring St -->
+        <rect x="486" y="0" width="18" height="240" fill="#1e2630"/>
+        <text x="512" y="60" fill="#e8a33d" font-family="Cascadia Code,monospace" font-size="11">S Spring St</text>
+        <!-- Main St -->
+        <rect x="300" y="0" width="12" height="240" fill="#161c25"/>
+        <text x="292" y="230" fill="#5f6b7a" font-family="Cascadia Code,monospace" font-size="10" text-anchor="end">Main St</text>
+        <!-- Broadway -->
+        <rect x="690" y="0" width="12" height="240" fill="#161c25"/>
+        <text x="710" y="234" fill="#5f6b7a" font-family="Cascadia Code,monospace" font-size="10">Broadway · Grand Central Market</text>
+        <!-- 548 pin -->
+        <circle class="pin" cx="495" cy="120" r="7" fill="#e8a33d"/>
+        <circle cx="495" cy="120" r="14" fill="none" stroke="#e8a33d" stroke-opacity=".35" stroke-width="2"/>
+        <text x="520" y="116" fill="#e9ecf1" font-family="Segoe UI,sans-serif" font-weight="700" font-size="14">548 S Spring</text>
+        <text x="520" y="134" fill="#5f6b7a" font-family="Cascadia Code,monospace" font-size="10">loft building · ground‑floor retail</text>
+        <!-- Pershing Square -->
+        <rect x="140" y="70" width="110" height="40" rx="8" fill="#173026"/>
+        <text x="150" y="94" fill="#58c08a" font-family="Cascadia Code,monospace" font-size="10">Pershing Sq 0.2mi</text>
+        <!-- Metro station -->
+        <rect x="600" y="176" width="110" height="28" rx="7" fill="#16202e"/>
+        <text x="610" y="195" fill="#6ea8d9" font-family="Cascadia Code,monospace" font-size="10">Pershing Sq Metro</text>
+        <!-- nightlife dots -->
+        <g fill="#e0b34f" opacity=".5">
+          <circle cx="500" cy="55" r="4"/><circle cx="680" cy="45" r="4"/><circle cx="780" cy="90" r="4"/>
+          <circle cx="480" cy="180" r="4"/><circle cx="560" cy="195" r="4"/>
+        </g>
+      </svg>
+      <div class="maplegend">
+        <span><span class="sw" style="background:#e0b34f"></span>activity / nightlife gradient</span>
+        <span><span class="sw" style="background:#e8a33d"></span>subject address</span>
+        <span><span class="sw" style="background:#58c08a"></span>Pershing Square</span>
+        <span><span class="sw" style="background:#6ea8d9"></span>Metro station</span>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- overall scoreboard -->
+<div class="wrap">
+  <div class="scoreboard">
+    <div class="score livable"><div class="num">6</div><div class="lbl">Livable</div></div>
+    <div class="score safe"><div class="num">5</div><div class="lbl">Safe</div></div>
+    <div class="score connected"><div class="num">8</div><div class="lbl">Connected</div></div>
+  </div>
+</div>
+
+<!-- signal board -->
+<div class="board">
+  <div class="wrap">
+    <h2>Signal board — twelve dimensions at a glance</h2>
+    <div class="siggrid">
+      <div class="sig"><span class="lamp caution"></span><div><div class="n">Noise &amp; disruptions</div><div class="v">urban hum · late‑night bars</div></div></div>
+      <div class="sig"><span class="lamp caution"></span><div><div class="n">Neighbors &amp; vibe</div><div class="v">loft mix · tourists · skid edge</div></div></div>
+      <div class="sig"><span class="lamp caution"></span><div><div class="n">Schools</div><div class="v">not a draw for families</div></div></div>
+      <div class="sig"><span class="lamp caution"></span><div><div class="n">Crime &amp; safety</div><div class="v">property heavy, improving</div></div></div>
+      <div class="sig"><span class="lamp go"></span><div><div class="n">Transport &amp; commute</div><div class="v">Metro steps away</div></div></div>
+      <div class="sig"><span class="lamp go"></span><div><div class="n">Amenities &amp; walkability</div><div class="v">95 — Walker’s Paradise</div></div></div>
+      <div class="sig"><span class="lamp caution"></span><div><div class="n">Nuisances &amp; hazards</div><div class="v">sidewalks · air · noise</div></div></div>
+      <div class="sig"><span class="lamp info"></span><div><div class="n">Future developments</div><div class="v">more residential in pipeline</div></div></div>
+      <div class="sig"><span class="lamp info"></span><div><div class="n">Owner / rental insider</div><div class="v">check HOA rules · party walls</div></div></div>
+      <div class="sig"><span class="lamp caution"></span><div><div class="n">Pests &amp; code violations</div><div class="v">occasional roach reports</div></div></div>
+      <div class="sig"><span class="lamp go"></span><div><div class="n">Connectivity &amp; telecom</div><div class="v">gigabit fiber available</div></div></div>
+      <div class="sig"><span class="lamp caution"></span><div><div class="n">Natural hazard &amp; insurance</div><div class="v">masonry + liquefaction</div></div></div>
+    </div>
+  </div>
+</div>
+
+<section>
+  <div class="wrap">
+    <h2>Findings</h2>
+    <div class="cards">
+
+      <div class="card">
+        <span class="stamp caution">Active</span>
+        <h3>Noise &amp; disruptions</h3>
+        <div class="verdict">classic downtown soundtrack — livable unless you need silence</div>
+        <div class="clock">
+          <div class="seg day"><div class="h">◐ Day · 7a–6p</div><p>Traffic on Spring St, delivery trucks, construction on nearby adaptive‑reuse projects. Sidewalk chatter from coffee shops and Grand Central Market visitors.</p></div>
+          <div class="seg night"><div class="h">◑ Night · 6p–3a</div><p>Bar crowds on weekends (especially along Spring and Main), occasional street musicians, and the distant low rumble of the Red/Purple Line. Summer brings rooftop party noise. Sirens are part of the fabric.</p></div>
+        </div>
+        <div class="tip"><span class="t">Insider tip</span>“Earplugs are the unofficial welcome kit for any loft on Spring. You learn to sleep through the synthesizer of sirens, but the 2am bar closing shout‑outs still wake you.”<div class="src">Yelp reviews · r/DowntownLA</div></div>
+      </div>
+
+      <div class="card">
+        <span class="stamp caution">Mixed</span>
+        <h3>Neighbors &amp; community vibe</h3>
+        <div class="verdict">a cross‑section of DTLA: artists, professionals, unhoused neighbors, and weekend tourists</div>
+        <ul>
+          <li><b>Loft community</b> — many buildings have active resident groups; informal mix of creative workers, remote techies, and empty nesters</li>
+          <li><b>Transient presence</b> — Spring Street corridor sees persistent homeless encampments, especially near 5th and 6th; street cleaning and outreach are regular but not always effective</li>
+          <li><b>Watch item</b> — the block between 5th and 6th on Spring can feel desolate after 10pm, even with new businesses opening</li>
+          <li><b>Culture</b> — strong arts scene (galleries, The Last Bookstore), plus monthly Art Walk</li>
+        </ul>
+        <div class="tip hard"><span class="t">Insider tip</span>“Say hello to your building’s front‑desk person — they know who belongs and who doesn’t. The street outside is a different world after midnight.”<div class="src">Nextdoor Historic Core · resident interviews</div></div>
+      </div>
+
+      <div class="card">
+        <span class="stamp caution">Not a draw</span>
+        <h3>Schools</h3>
+        <div class="verdict">few families; the assignment is true but untested by most residents</div>
+        <ul>
+          <li><b>Assigned public schools</b> — 9th Street Elementary (2/10), John Liechty Middle (3/10), Belmont High (4/10) — same as Skid Row zone</li>
+          <li><b>Reality</b> — virtually no families with school‑age children live in these loft buildings; parents move out before kindergarten or use private/charter options elsewhere</li>
+          <li><b>No family‑friendly infrastructure</b> — no playgrounds, limited daycare nearby</li>
+        </ul>
+        <div class="tip"><span class="t">Insider tip</span>If you’re house‑hunting with a future family in mind, the Historic Core isn’t it. The loft demographic is 90% singles/couples without kids.<div class="src">GreatSchools · LAUSD data</div></div>
+      </div>
+
+      <div class="card">
+        <span class="stamp caution">Improving</span>
+        <h3>Crime &amp; safety</h3>
+        <div class="verdict">property crime is the daily nuisance; violent crime is concentrated, not random</div>
+        <div class="statrow">
+          <div class="bignum"><span class="x">~150</span><span class="l">theft incidents / 12 mo · 0.25 mi</span></div>
+          <div class="bignum"><span class="x">~20</span><span class="l">robberies (mainly street)</span></div>
+          <div class="bignum"><span class="x"><span style="color:var(--go);">▼</span> 8%</span><span class="l">violent crime YoY</span></div>
+        </div>
+        <div class="bar">
+          <div class="row"><span>Theft from vehicle</span><div class="trk"><div class="fil" style="width:75%;background:var(--caution)"></div></div><span class="val">elevated</span></div>
+          <div class="row"><span>Residential burglary</span><div class="trk"><div class="fil" style="width:30%;background:var(--caution)"></div></div><span class="val">moderate</span></div>
+          <div class="row"><span>Aggravated assault</span><div class="trk"><div class="fil" style="width:15%;background:var(--alert)"></div></div><span class="val">low but serious</span></div>
+        </div>
+        <ul style="margin-top:12px">
+          <li><b>Package theft</b> — the #1 complaint in loft buildings; secure mailrooms are essential</li>
+          <li><b>Block awareness</b> — Spring St feels safer than Main or Los Angeles St; lighting and foot traffic help</li>
+        </ul>
+        <div class="tip"><span class="t">Insider tip</span>“I walk Spring after dark, but I keep to the east side where the hotels and lofts are. The west side near the parking lots can be dicey after 11pm.”<div class="src">LAPD Central Area · Citizen app · Resident surveys</div></div>
+      </div>
+
+      <div class="card">
+        <span class="stamp go">Excellent</span>
+        <h3>Transport &amp; commute</h3>
+        <div class="verdict">you can live without a car — and many do</div>
+        <ul>
+          <li><b>Metro</b> — Pershing Square station (Red/Purple) is 0.2 mi; 7th St/Metro Center (Blue/Expo/Red/Purple) is 0.5 mi</li>
+          <li><b>Bus</b> — DASH Downtown loops, #60/#720 lines on 6th/7th</li>
+          <li><b>Bike</b> — dedicated lanes on Spring St; Metro Bike share stations nearby</li>
+          <li><b>Car</b> — often a liability; parking add‑ons in buildings run $150–250/month; street parking is a cruel lottery</li>
+          <li><b>Rideshare</b> — easy pickup, rarely refused</li>
+        </ul>
+        <div class="tip"><span class="t">Insider tip</span>“Sell your car before you move in. The $200 you save on parking pays for a monthly Metro pass and a few Uber rides.”<div class="src">Walkscore · Reddit car‑free DTLA threads</div></div>
+      </div>
+
+      <div class="card">
+        <span class="stamp go">Walker’s Paradise</span>
+        <h3>Amenities &amp; walkability</h3>
+        <div class="verdict">everything is a 5‑minute walk — including the grit</div>
+        <div class="dial">
+          <svg width="92" height="92" viewBox="0 0 92 92">
+            <circle cx="46" cy="46" r="38" fill="none" stroke="#242d39" stroke-width="9"/>
+            <circle cx="46" cy="46" r="38" fill="none" stroke="#58c08a" stroke-width="9"
+              stroke-dasharray="225 238.8" stroke-linecap="round" transform="rotate(-90 46 46)"/>
+            <text x="46" y="44" text-anchor="middle" fill="#e9ecf1" font-family="Segoe UI,sans-serif" font-weight="800" font-size="22">95</text>
+            <text x="46" y="62" text-anchor="middle" fill="#5f6b7a" font-family="Cascadia Code,monospace" font-size="8.5">WALK SCORE</text>
+          </svg>
+          <div class="cap"><b>Groceries</b> — Whole Foods (0.3 mi), Ralphs (0.6 mi). <b>Food</b> — Grand Central Market, Bottega Louie, Guisados, KazuNori. <b>Coffee</b> — Verve, G&amp;B, Endorffeine. <b>Gym</b> — Equinox, F45, various boutique studios.</div>
+        </div>
+        <div class="tip"><span class="t">Watch item</span>The nearest green space is Pershing Square — great for lunch, less so for a dog run. Pet relief areas are scarce and often unsanitary.</div>
+      </div>
+
+      <div class="card">
+        <span class="stamp caution">Urban grit</span>
+        <h3>Nuisances &amp; hazards</h3>
+        <div class="verdict">the cost of centrality: air, sanitation, and sensory overload</div>
+        <div class="bar">
+          <div class="row"><span>PM2.5 (monthly avg)</span><div class="trk"><div class="fil" style="width:70%;background:var(--caution)"></div></div><span class="val">2× WHO</span></div>
+          <div class="row"><span>Sidewalk cleanliness</span><div class="trk"><div class="fil" style="width:55%;background:var(--caution)"></div></div><span class="val">variable</span></div>
+        </div>
+        <ul style="margin-top:12px">
+          <li><b>Air quality</b> — traffic corridors (Spring/Broadway/Hill) plus lack of tree canopy keep PM2.5 elevated; HEPA filters are a common purchase</li>
+          <li><b>Sidewalks</b> — depending on the week, you may encounter trash, human waste, or overflowing dumpsters; Business Improvement District (BID) cleaning is inconsistent</li>
+          <li><b>Homeless presence</b> — visible on almost every block, but generally not aggressive in this stretch</li>
+          <li><b>Pests</b> — occasional cockroach reports in older buildings; bed bug risk in shared‑laundry setups</li>
+        </ul>
+        <div class="tip"><span class="t">Sensor</span>PurpleAir sensors along 6th St routinely show 15‑25 µg/m³ PM2.5 (monthly average).</div>
+      </div>
+
+      <div class="card">
+        <span class="stamp go">Clean record</span>
+        <h3>Pest &amp; code violation history</h3>
+        <div class="verdict">no major violations at 548 S Spring; typical downtown caution</div>
+        <ul>
+          <li><b>548 S Spring</b> — zero open code violations; last routine inspection passed (2023)</li>
+          <li><b>Neighboring buildings</b> — two adjacent properties filed for bed‑bug treatment in 2023; one resolved, one ongoing</li>
+          <li><b>General area</b> — rat sightings increase near dumpster rows in alleys; building with secure trash rooms avoid issues</li>
+        </ul>
+        <div class="tip"><span class="t">Insider tip</span>“Our building has a monthly pest‑control contract — ask the manager if yours does. If they share laundry, check the service logs.”<div class="src">LA 311 · resident interviews</div></div>
+      </div>
+
+      <div class="card">
+        <span class="stamp go">Gigabit ready</span>
+        <h3>Connectivity &amp; telecom reality</h3>
+        <div class="verdict">fiber has arrived — choose wisely</div>
+        <div class="bar">
+          <div class="row"><span>AT&T Fiber</span><div class="trk"><div class="fil" style="width:100%;background:var(--go)"></div></div><span class="val">5 Gbps</span></div>
+          <div class="row"><span>Starry Internet</span><div class="trk"><div class="fil" style="width:70%;background:var(--caution)"></div></div><span class="val">200 Mbps</span></div>
+          <div class="row"><span>Spectrum</span><div class="trk"><div class="fil" style="width:50%;background:var(--caution)"></div></div><span class="val">1 Gbps</span></div>
+        </div>
+        <ul style="margin-top:12px">
+          <li><b>Best option</b> — AT&T Fiber is available in the building; symmetrical 1‑5 Gbps, reliable</li>
+          <li><b>Starry</b> — popular in older loft buildings that lacked fiber until recently; decent, but prone to congestion in dense blocks</li>
+          <li><b>Cell coverage</b> — strong across all carriers; some interior dead spots in thick concrete corridors</li>
+        </ul>
+        <div class="tip"><span class="t">Verbatim</span>“I had Spectrum and it crawled at 8pm — switched to AT&T Fiber and haven’t thought about it since.” —Google review of nearby building<div class="src">FCC Broadband Map · resident comments</div></div>
+      </div>
+
+      <div class="card">
+        <span class="stamp caution">Old bones</span>
+        <h3>Natural hazard &amp; insurance risk</h3>
+        <div class="verdict">historic masonry + liquefaction zone = higher premiums</div>
+        <ul>
+          <li><b>Flood</b> — FEMA Zone X (minimal risk)</li>
+          <li><b>Earthquake</b> — located in a **high liquefaction zone**; the building is a 1920s unreinforced masonry (URM) structure — LA’s URM retrofit law requires seismic strengthening, but many projects are still in progress</li>
+          <li><b>Fire</b> — urban core, low wildfire risk; but old structures have higher fire risk from electrical/construction</li>
+          <li><b>Insurance</b> — condo/renter’s insurance is higher than suburban rates due to URM and location; earthquake coverage is expensive but often mandated by HOAs</li>
+        </ul>
+        <div class="tip"><span class="t">Insurance bottom line</span>Check if the HOA has completed the mandatory retrofit — that can lower earthquake premiums by 20‑30%.<div class="src">CA Geological Survey · LA DBS</div></div>
+      </div>
+
+      <div class="card">
+        <span class="stamp info">In motion</span>
+        <h3>Future developments</h3>
+        <div class="verdict">more residents, more services, but also more construction</div>
+        <ul>
+          <li><b>548 S Spring itself</b> — ground‑floor retail spaces are still filling; expect occasional fit‑out work</li>
+          <li><b>Nearby</b> — multiple adaptive‑reuse projects on Spring and Main converting offices to residential; temporary construction noise and scaffolding</li>
+          <li><b>6th Street Bridge park</b> — completion of the new bridge and planned park space will create a downtown greenway, but that’s several years away</li>
+          <li><b>Homeless services</b> — city plans to add a navigation center on 5th St may concentrate services near the area; community meetings are ongoing</li>
+        </ul>
+        <div class="tip"><span class="t">Diligence</span>Sign up for Historic Core BID newsletters; they often announce new restaurant/retail leases before anyone else.</div>
+      </div>
+
+      <div class="card wide">
+        <span class="stamp info">Loft‑specific</span>
+        <h3>Owner / rental insider — what the lease doesn’t say</h3>
+        <div class="verdict">adaptive‑reuse charm comes with quirks — know them before you sign</div>
+        <ul>
+          <li><b>548 S Spring</b> — a 1924 bank building turned lofts; units have high ceilings, concrete columns, and large windows. Some units lack soundproofing between neighbors (concrete floors help but walls can transmit).</li>
+          <li><b>HOA</b> — self‑managed; monthly fees ~$0.45/sq ft. No ongoing litigation, but a special assessment for elevator modernization was discussed in 2023.</li>
+          <li><b>Rental restrictions</b> — some units have rental caps; verify before buying as an investment.</li>
+          <li><b>Package management</b> — packages left in the lobby are frequent theft targets; residents recommend using a locker service or delivery to work.</li>
+        </ul>
+        <div class="tip"><span class="t">Insider tip</span>“The building is solid, but the old single‑pane windows will bleed your AC savings in summer. Budget an extra $50/mo for cooling.” —Zillow review<div class="src">Zillow listings · HOA minutes · LAHD</div></div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Data source catalog — Historic Core specifics</h2>
+    <div class="srcgrid">
+      <div class="srcbox"><div class="k"><b>A · Noise</b><span class="ct">6 sources</span></div><p>LA 311 noise complaints · Nextdoor Historic Core · r/DowntownLA · bar/club Yelp reviews · Metro train schedule · Police helicopter maps</p></div>
+      <div class="srcbox"><div class="k"><b>B · Neighbors</b><span class="ct">5 sources</span></div><p>Nextdoor · r/DowntownLA · building‑specific Google reviews · Historic Core BID surveys · LAHSA homeless count data</p></div>
+      <div class="srcbox"><div class="k"><b>C · Schools</b><span class="ct">3 sources</span></div><p>LAUSD zone finder · GreatSchools · Niche (no local parent reviews of substance)</p></div>
+      <div class="srcbox"><div class="k"><b>D · Crime</b><span class="ct">5 sources</span></div><p>LAPD Central Area COMPSTAT · crimemapping.com · Citizen app · SpotCrime · Downtown LA Neighborhood Council public safety reports</p></div>
+      <div class="srcbox"><div class="k"><b>E · Commute</b><span class="ct">4 sources</span></div><p>Metro API · Google Maps Directions · Walkscore · DASH schedules</p></div>
+      <div class="srcbox"><div class="k"><b>F · Amenities</b><span class="ct">4 sources</span></div><p>Google Places / Yelp Fusion · DTLA BID business directory · Pershing Square events · Whole Foods / Ralphs distance</p></div>
+      <div class="srcbox"><div class="k"><b>G · Hazards</b><span class="ct">5 sources</span></div><p>PurpleAir · LA Sanitation 311 · FEMA flood maps · Caltrans traffic data · SRO / shelter proximity</p></div>
+      <div class="srcbox"><div class="k"><b>H · Pests</b><span class="ct">3 sources</span></div><p>LA 311 pest complaints · LA County Vector Control · Building inspection records</p></div>
+      <div class="srcbox"><div class="k"><b>I · Connectivity</b><span class="ct">3 sources</span></div><p>FCC Broadband Map · resident reviews · carrier coverage maps</p></div>
+      <div class="srcbox"><div class="k"><b>J · Natural hazards</b><span class="ct">3 sources</span></div><p>CA Geological Survey · LA DBS URM database · CEA earthquake insurance guides</p></div>
+      <div class="srcbox"><div class="k"><b>K · Development</b><span class="ct">4 sources</span></div><p>LA City Planning case search · Urbanize LA · Historic Core BID meeting minutes · CD‑14 announcements</p></div>
+      <div class="srcbox"><div class="k"><b>L · Owner / rental</b><span class="ct">4 sources</span></div><p>Zillow/Redfin listing history · LAHD code complaints · County civil court records · HOA minutes</p></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Implementation roadmap</h2>
+    <div class="rail">
+      <div class="step"><div class="t">Ingest</div><div class="d">Pull from APIs, scraping, and open data for the address + quarter‑mile radius</div><div class="f">crime daily · social weekly · permits weekly</div></div>
+      <div class="step"><div class="t">Synthesize</div><div class="d">LLM compresses signal into insider‑style verdicts (no hype, just straight)</div><div class="f">every tip is traceable to a source</div></div>
+      <div class="step"><div class="t">Protect</div><div class="d">No PII, no singular user quotes without context — always aggregated</div></div>
+      <div class="step"><div class="t">Serve</div><div class="d">Deliver as an interactive dossier: scores → signal board → deep‑dive cards</div><div class="f">personalize by renter vs buyer priorities</div></div>
+    </div>
+  </div>
+</section>
+
+<footer class="foot">
+  <div class="wrap">
+    <h2 style="font-size:13px;font-family:var(--mono);letter-spacing:.2em;text-transform:uppercase;color:var(--faint);margin:0 0 18px;display:flex;align-items:center;gap:12px">Sources as cited in report<span style="flex:1;height:1px;background:var(--line)"></span></h2>
+    <div class="cols">
+      <div data-n="01">LAPD Central Area COMPSTAT — 0.25 mi radius, Jun 2023–Jun 2024</div>
+      <div data-n="02">Crimemapping.com — Spring St corridor</div>
+      <div data-n="03">Nextdoor — Historic Core, keyword “noise / package / safety”</div>
+      <div data-n="04">Reddit — r/DowntownLA, r/LosAngeles</div>
+      <div data-n="05">Google Reviews — 548 S Spring St + neighboring buildings</div>
+      <div data-n="06">Zillow/Redfin — 548 S Spring listing history</div>
+      <div data-n="07">LAHD — code complaints + rent‑stabilization lookup</div>
+      <div data-n="08">LA 311 — pest / noise complaints for 548 S Spring and block</div>
+      <div data-n="09">FCC Broadband Map — providers for 90013</div>
+      <div data-n="10">CA Geological Survey — liquefaction zone</div>
+      <div data-n="11">LA DBS — URM retrofit status</div>
+      <div data-n="12">PurpleAir — sensors near 6th &amp; Spring</div>
+      <div data-n="13">Walkscore — 548 S Spring St</div>
+      <div data-n="14">Metro API — rail and bus schedules</div>
+      <div data-n="15">Historic Core BID — newsletters and safety reports</div>
+    </div>
+    <div class="disc">⚠ Simulated sample for product illustration. Production reports link every claim to real‑time, timestamped sources and public records. PII scrubbed; aggregate trends only.</div>
+  </div>
+</footer>
+
+</body>
+</html>

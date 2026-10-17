@@ -1,0 +1,395 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Living Insider — 671 Macarthur Ave, Los Angeles 90025</title>
+<style>
+  /* ============ tokens : LA night-map ============ */
+  :root{
+    --ink:#0e1116;        /* asphalt night */
+    --panel:#151a21;
+    --panel-2:#1a212b;
+    --line:#242d39;
+    --text:#e9ecf1;
+    --muted:#9aa4b1;
+    --faint:#5f6b7a;
+    --street:#e8a33d;     /* sodium streetlight — signature accent */
+    --go:#58c08a;
+    --caution:#e0b34f;
+    --alert:#e0685f;
+    --data:#6ea8d9;
+    --mono:"Cascadia Code","JetBrains Mono",ui-monospace,Consolas,monospace;
+    --ui:"Segoe UI",ui-sans-serif,system-ui,-apple-system,Roboto,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--ink);color:var(--text);font-family:var(--ui);font-size:15px;line-height:1.6}
+  .wrap{max-width:1060px;margin:0 auto;padding:0 28px}
+  ::selection{background:rgba(232,163,61,.3)}
+
+  /* ============ hero ============ */
+  .hero{padding:52px 0 0;border-bottom:1px solid var(--line)}
+  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--street);display:flex;align-items:center;gap:12px}
+  .eyebrow::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,var(--street),transparent)}
+  h1{font-size:clamp(30px,4.6vw,52px);font-weight:800;letter-spacing:-.02em;line-height:1.05;margin:14px 0 6px}
+  h1 .num{color:var(--street)}
+  .sub{color:var(--muted);font-size:15.5px;max-width:640px;margin:0 0 18px}
+  .chiprow{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 26px}
+  .chip{font-family:var(--mono);font-size:11.5px;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:5px 12px}
+  .chip b{color:var(--text);font-weight:600}
+  .simnote{display:inline-flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11px;color:var(--caution);
+    border:1px dashed rgba(224,179,79,.5);border-radius:8px;padding:6px 12px;margin-bottom:26px}
+
+  /* street schematic */
+  .mapcard{background:var(--panel);border:1px solid var(--line);border-radius:16px 16px 0 0;border-bottom:none;padding:10px 10px 0;overflow:hidden}
+  .mapcard svg{display:block;width:100%;height:auto}
+  .maplegend{display:flex;flex-wrap:wrap;gap:18px;padding:10px 16px 14px;font-family:var(--mono);font-size:10.5px;color:var(--faint)}
+  .maplegend span{display:inline-flex;align-items:center;gap:7px}
+  .sw{width:14px;height:4px;border-radius:2px;display:inline-block}
+  @keyframes ping{0%{r:6}50%{r:9}100%{r:6}}
+  .pin{animation:ping 2.2s ease-in-out infinite}
+  @media (prefers-reduced-motion:reduce){.pin{animation:none}}
+
+  /* ============ signal board ============ */
+  .board{padding:34px 0 8px}
+  .board h2, section h2{font-size:13px;font-family:var(--mono);letter-spacing:.2em;text-transform:uppercase;color:var(--faint);margin:0 0 18px;display:flex;align-items:center;gap:12px}
+  .board h2::after, section h2::after{content:'';flex:1;height:1px;background:var(--line)}
+  .siggrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:10px}
+  .sig{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:13px 15px;display:flex;align-items:center;gap:12px}
+  .lamp{width:11px;height:11px;border-radius:50%;flex:0 0 auto}
+  .lamp.go{background:var(--go);box-shadow:0 0 10px rgba(88,192,138,.55)}
+  .lamp.caution{background:var(--caution);box-shadow:0 0 10px rgba(224,179,79,.55)}
+  .lamp.info{background:var(--data);box-shadow:0 0 10px rgba(110,168,217,.5)}
+  .sig .n{font-size:13.5px;font-weight:600}
+  .sig .v{font-family:var(--mono);font-size:10.5px;color:var(--faint);margin-top:1px}
+
+  /* ============ sections ============ */
+  section{padding:34px 0 6px}
+  .cards{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media (max-width:820px){.cards{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px 22px;position:relative}
+  .card.wide{grid-column:1 / -1}
+  .stamp{position:absolute;top:18px;right:18px;font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;
+    border:1.5px solid;border-radius:6px;padding:3px 9px;transform:rotate(-2deg)}
+  .stamp.go{color:var(--go);border-color:rgba(88,192,138,.6)}
+  .stamp.caution{color:var(--caution);border-color:rgba(224,179,79,.6)}
+  .card h3{margin:0 0 4px;font-size:17.5px;font-weight:700;letter-spacing:-.01em;padding-right:110px}
+  .card .verdict{font-family:var(--mono);font-size:11px;color:var(--muted);margin-bottom:14px}
+  .card ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:10px}
+  .card li{padding-left:16px;position:relative;color:var(--muted);font-size:14px}
+  .card li::before{content:'';position:absolute;left:0;top:9px;width:6px;height:6px;border-radius:2px;background:var(--faint)}
+  .card li b{color:var(--text);font-weight:600}
+  .tip{margin-top:14px;background:var(--panel-2);border-left:3px solid var(--street);border-radius:0 10px 10px 0;padding:11px 14px;font-size:13.5px;color:var(--muted)}
+  .tip .t{font-family:var(--mono);font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--street);display:block;margin-bottom:4px}
+  .src{font-family:var(--mono);font-size:10px;color:var(--faint)}
+
+  /* small viz */
+  .statrow{display:flex;gap:22px;flex-wrap:wrap;margin:6px 0 14px}
+  .bignum{display:flex;flex-direction:column}
+  .bignum .x{font-size:30px;font-weight:800;letter-spacing:-.02em;line-height:1}
+  .bignum .x small{font-size:13px;font-weight:600;color:var(--go)}
+  .bignum .l{font-family:var(--mono);font-size:10px;color:var(--faint);margin-top:5px;letter-spacing:.08em;text-transform:uppercase}
+  .bar{display:flex;flex-direction:column;gap:8px;margin-top:6px}
+  .bar .row{display:grid;grid-template-columns:120px 1fr 40px;gap:10px;align-items:center;font-size:12.5px;color:var(--muted)}
+  .bar .trk{height:9px;background:var(--panel-2);border-radius:5px;overflow:hidden}
+  .bar .fil{height:100%;border-radius:5px}
+  .bar .val{font-family:var(--mono);font-size:11px;color:var(--text);text-align:right}
+  .dial{display:flex;align-items:center;gap:16px}
+  .dial svg{flex:0 0 auto}
+  .dial .cap{font-size:13.5px;color:var(--muted)}
+
+  /* ============ source catalog ============ */
+  .srcgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:10px}
+  .srcbox{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:15px 17px}
+  .srcbox .k{display:flex;align-items:baseline;gap:10px;margin-bottom:8px}
+  .srcbox .k b{font-size:13.5px}
+  .srcbox .k .ct{font-family:var(--mono);font-size:10px;color:var(--data)}
+  .srcbox p{margin:0;font-size:12.5px;color:var(--faint);line-height:1.55}
+
+  /* ============ roadmap ============ */
+  .rail{display:grid;grid-template-columns:repeat(5,1fr);gap:0;margin-top:6px}
+  @media (max-width:820px){.rail{grid-template-columns:1fr}}
+  .step{position:relative;padding:0 18px 6px 0}
+  .step::before{content:'';position:absolute;top:7px;left:0;right:6px;height:2px;background:var(--line)}
+  .step::after{content:'';position:absolute;top:3px;left:0;width:10px;height:10px;border-radius:50%;background:var(--street)}
+  .step .t{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--street);margin:20px 0 5px}
+  .step .d{font-size:12.5px;color:var(--muted)}
+  .step .f{font-family:var(--mono);font-size:10px;color:var(--faint);margin-top:5px}
+
+  /* ============ footer ============ */
+  .foot{margin:44px 0 0;border-top:1px solid var(--line);padding:22px 0 46px}
+  .foot .cols{display:grid;grid-template-columns:1fr 1fr;gap:8px 40px;font-size:12px;color:var(--faint)}
+  @media (max-width:820px){.foot .cols{grid-template-columns:1fr}}
+  .foot .cols div{padding-left:18px;position:relative}
+  .foot .cols div::before{content:attr(data-n);position:absolute;left:0;font-family:var(--mono);font-size:10px;color:var(--data)}
+  .foot .disc{font-family:var(--mono);font-size:10.5px;color:var(--caution);margin-top:22px}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="eyebrow">Living Insider · Sample Dossier</div>
+    <h1><span class="num">671</span> Macarthur Ave<br>Los Angeles, CA 90025</h1>
+    <p class="sub">The unofficial truth about an address — resident chatter, public records, sensor data, and forum archaeology, compiled into one livability briefing.</p>
+    <div class="chiprow">
+      <span class="chip">Area <b>Sawtelle · "Little Osaka"</b></span>
+      <span class="chip">Type <b>Residential side street</b></span>
+      <span class="chip">Walk Score <b>87 / 100</b></span>
+      <span class="chip">Crime trend <b>▼ 10% YoY</b></span>
+      <span class="chip">Data window <b>Jan 2023 – Oct 2024</b></span>
+    </div>
+    <div class="simnote">⚠ Simulated report — production claims link to scraped, cited source data</div>
+
+    <div class="mapcard">
+      <svg viewBox="0 0 1020 240" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Street schematic: I-405 west of the address, Sawtelle Blvd east, 671 Macarthur Ave marked between them">
+        <!-- freeway noise gradient -->
+        <defs>
+          <linearGradient id="noise" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stop-color="#e0685f" stop-opacity=".22"/>
+            <stop offset="1" stop-color="#e0685f" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+        <rect x="0" y="0" width="300" height="240" fill="url(#noise)"/>
+        <!-- I-405 -->
+        <rect x="52" y="0" width="34" height="240" fill="#242d39"/>
+        <line x1="69" y1="0" x2="69" y2="240" stroke="#e8a33d" stroke-width="2" stroke-dasharray="14 12" opacity=".7"/>
+        <text x="42" y="126" fill="#9aa4b1" font-family="Cascadia Code,monospace" font-size="12" transform="rotate(-90 42 126)">I-405 · 0.3 mi</text>
+        <!-- Santa Monica Blvd -->
+        <rect x="0" y="26" width="1020" height="16" fill="#1a212b"/>
+        <text x="920" y="21" fill="#5f6b7a" font-family="Cascadia Code,monospace" font-size="11">Santa Monica Blvd</text>
+        <!-- Olympic -->
+        <rect x="0" y="196" width="1020" height="16" fill="#1a212b"/>
+        <text x="938" y="230" fill="#5f6b7a" font-family="Cascadia Code,monospace" font-size="11">Olympic Blvd</text>
+        <!-- Sawtelle Blvd -->
+        <rect x="640" y="0" width="20" height="240" fill="#1a212b"/>
+        <text x="666" y="66" fill="#e8a33d" font-family="Cascadia Code,monospace" font-size="11">Sawtelle Blvd · Japantown row</text>
+        <text x="666" y="84" fill="#5f6b7a" font-family="Cascadia Code,monospace" font-size="10">Nijiya 0.4mi · Tsujita · Eightfold</text>
+        <!-- Corinth -->
+        <rect x="480" y="0" width="12" height="240" fill="#161c25"/>
+        <text x="470" y="234" fill="#5f6b7a" font-family="Cascadia Code,monospace" font-size="10" text-anchor="end">Corinth Ave · remodels</text>
+        <!-- Macarthur Ave -->
+        <rect x="300" y="0" width="14" height="240" fill="#1e2630"/>
+        <text x="322" y="228" fill="#9aa4b1" font-family="Cascadia Code,monospace" font-size="11">Macarthur Ave</text>
+        <!-- 671 pin -->
+        <circle class="pin" cx="307" cy="120" r="7" fill="#e8a33d"/>
+        <circle cx="307" cy="120" r="14" fill="none" stroke="#e8a33d" stroke-opacity=".35" stroke-width="2"/>
+        <text x="330" y="116" fill="#e9ecf1" font-family="Segoe UI,sans-serif" font-weight="700" font-size="14">671 Macarthur</text>
+        <text x="330" y="134" fill="#5f6b7a" font-family="Cascadia Code,monospace" font-size="10">freeway hum W · izakaya row E</text>
+        <!-- Stoner Park -->
+        <rect x="800" y="120" width="120" height="70" rx="10" fill="#173026"/>
+        <text x="815" y="160" fill="#58c08a" font-family="Cascadia Code,monospace" font-size="11">Stoner Park 0.5mi</text>
+        <!-- 405 underpass caution -->
+        <text x="96" y="212" fill="#e0685f" font-family="Cascadia Code,monospace" font-size="10">405 underpass · caution at night</text>
+      </svg>
+      <div class="maplegend">
+        <span><span class="sw" style="background:#e0685f"></span>noise / caution gradient</span>
+        <span><span class="sw" style="background:#e8a33d"></span>subject address</span>
+        <span><span class="sw" style="background:#58c08a"></span>green space</span>
+        <span><span class="sw" style="background:#1a212b"></span>arterial streets</span>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- signal board -->
+<div class="board">
+  <div class="wrap">
+    <h2>Signal board — nine categories at a glance</h2>
+    <div class="siggrid">
+      <div class="sig"><span class="lamp caution"></span><div><div class="n">Noise &amp; disruptions</div><div class="v">moderate · predictable</div></div></div>
+      <div class="sig"><span class="lamp go"></span><div><div class="n">Neighbors &amp; vibe</div><div class="v">tight-knit for LA</div></div></div>
+      <div class="sig"><span class="lamp go"></span><div><div class="n">Schools</div><div class="v">highly rated · competitive</div></div></div>
+      <div class="sig"><span class="lamp go"></span><div><div class="n">Crime &amp; safety</div><div class="v">low, trending down</div></div></div>
+      <div class="sig"><span class="lamp caution"></span><div><div class="n">Transport &amp; commute</div><div class="v">good access · parking pain</div></div></div>
+      <div class="sig"><span class="lamp go"></span><div><div class="n">Amenities &amp; walkability</div><div class="v">87 — very walkable</div></div></div>
+      <div class="sig"><span class="lamp caution"></span><div><div class="n">Nuisances &amp; hazards</div><div class="v">freeway PM2.5</div></div></div>
+      <div class="sig"><span class="lamp info"></span><div><div class="n">Future developments</div><div class="v">D Line + mixed-use filed</div></div></div>
+      <div class="sig"><span class="lamp info"></span><div><div class="n">Owner / rental insider</div><div class="v">check LAHD + UD filings</div></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- findings -->
+<section>
+  <div class="wrap">
+    <h2>Findings</h2>
+    <div class="cards">
+
+      <div class="card">
+        <span class="stamp caution">Moderate</span>
+        <h3>Noise &amp; disruptions</h3>
+        <div class="verdict">predictable sources, worst on weekend nights</div>
+        <ul>
+          <li><b>I-405, 0.3 mi west</b> — constant low hum, peaks 7–9 AM and 4–7 PM; strongest with north/west-facing bedrooms</li>
+          <li><b>Sawtelle Blvd</b> — street racing and motorcycle revving Fri/Sat after 10 PM at the Santa Monica Blvd light</li>
+          <li><b>Construction</b> — no projects on Macarthur itself; teardown jackhammering on Corinth, weekdays 8 AM–4 PM</li>
+          <li><b>Aircraft</b> — off LAX flight paths; occasional SMO business jets on weekends, low impact</li>
+        </ul>
+        <div class="tip"><span class="t">Insider tip</span>"You get used to the freeway white noise — but pick a bedroom that doesn't face it."<div class="src">Reddit · Sawtelle noise threads / Nextdoor "Sawtelle 90025", Jun–Aug 2024</div></div>
+      </div>
+
+      <div class="card">
+        <span class="stamp go">Green</span>
+        <h3>Neighbors &amp; community vibe</h3>
+        <div class="verdict">long-term homeowners + young families, active council</div>
+        <ul>
+          <li><b>"Surprisingly tight-knit"</b> — occasional block parties, dog walkers out late, well-lit street</li>
+          <li><b>One watch item</b> — 660 Macarthur apartments: maintenance disputes, "thin walls" in recent reviews</li>
+          <li><b>No nuisance flags</b> — zero 311 problem-property complaints on this block</li>
+          <li><b>Council debates</b> — encampment near 405 underpass; proposed VA-campus shelter</li>
+        </ul>
+        <div class="tip"><span class="t">Insider tip</span>Lost-pet posts are dense here — a reliable proxy for real neighbor engagement.<div class="src">Nextdoor 0.5 mi radius · r/LosAngeles 2023</div></div>
+      </div>
+
+      <div class="card">
+        <span class="stamp go">Green</span>
+        <h3>Schools</h3>
+        <div class="verdict">strong ratings, brutal entry mechanics</div>
+        <ul>
+          <li><b>Westwood Charter Elementary</b> — 8/10, lottery even within boundary</li>
+          <li><b>Emerson Middle</b> — 7/10, arts magnet gaining traction</li>
+          <li><b>University High</b> — 8/10, strong APs, some overcrowding</li>
+          <li><b>Private nearby</b> — St. Sebastian, Wildwood</li>
+        </ul>
+        <div class="tip"><span class="t">Insider tip</span>The Westwood Charter waitlist fills within hours of opening — apply the moment it does.<div class="src">GreatSchools parent reviews · r/AskLosAngeles 2024</div></div>
+      </div>
+
+      <div class="card">
+        <span class="stamp go">Green</span>
+        <h3>Crime &amp; safety</h3>
+        <div class="verdict">property crime dominant, violent crime rare, trend down</div>
+        <div class="statrow">
+          <div class="bignum"><span class="x">42</span><span class="l">property / 12 mo · 1 mi</span></div>
+          <div class="bignum"><span class="x">3</span><span class="l">violent / 12 mo · 1 mi</span></div>
+          <div class="bignum"><span class="x"><small>▼</small> 10%</span><span class="l">YoY · West LA CompStat</span></div>
+        </div>
+        <div class="bar">
+          <div class="row"><span>Theft from vehicle</span><div class="trk"><div class="fil" style="width:88%;background:var(--caution)"></div></div><span class="val">high</span></div>
+          <div class="row"><span>Residential burglary</span><div class="trk"><div class="fil" style="width:42%;background:var(--caution)"></div></div><span class="val">med</span></div>
+          <div class="row"><span>Robbery (commercial)</span><div class="trk"><div class="fil" style="width:9%;background:var(--alert)"></div></div><span class="val">low</span></div>
+        </div>
+        <div class="tip"><span class="t">Insider tip</span>Catalytic-converter theft series ran 2–4 AM on Sawtelle side streets, fall 2023 — arrests made. Caution near the 405 underpass at night.<div class="src">LAPD West LA · community meeting minutes, Sept 2024</div></div>
+      </div>
+
+      <div class="card">
+        <span class="stamp caution">Mixed</span>
+        <h3>Transport &amp; commute</h3>
+        <div class="verdict">fast off-peak, permit parking bites at night</div>
+        <div class="bar">
+          <div class="row"><span>Santa Monica</span><div class="trk"><div class="fil" style="width:30%;background:var(--go)"></div></div><span class="val">15m</span></div>
+          <div class="row"><span>Century City</span><div class="trk"><div class="fil" style="width:36%;background:var(--go)"></div></div><span class="val">~18m</span></div>
+          <div class="row"><span>DTLA</span><div class="trk"><div class="fil" style="width:50%;background:var(--caution)"></div></div><span class="val">25m</span></div>
+          <div class="row"><span>DTLA · peak</span><div class="trk"><div class="fil" style="width:100%;background:var(--alert)"></div></div><span class="val">50m+</span></div>
+        </div>
+        <ul style="margin-top:14px">
+          <li><b>Transit</b> — #17 bus on Sawtelle; Expo Line 1.5 mi — not truly transit-walkable</li>
+          <li><b>Parking</b> — District 14 overnight permits; "never find a spot after 8 PM without a guest pass"</li>
+        </ul>
+        <div class="tip"><span class="t">Insider shortcut</span>Skip the backed-up Santa Monica Blvd on-ramp — cut Sawtelle → Olympic instead.</div>
+      </div>
+
+      <div class="card">
+        <span class="stamp go">Green</span>
+        <h3>Amenities &amp; walkability</h3>
+        <div class="verdict">Japantown row is the whole pitch</div>
+        <div class="dial">
+          <svg width="92" height="92" viewBox="0 0 92 92">
+            <circle cx="46" cy="46" r="38" fill="none" stroke="#242d39" stroke-width="9"/>
+            <circle cx="46" cy="46" r="38" fill="none" stroke="#58c08a" stroke-width="9"
+              stroke-dasharray="207.6 238.8" stroke-linecap="round" transform="rotate(-90 46 46)"/>
+            <text x="46" y="44" text-anchor="middle" fill="#e9ecf1" font-family="Segoe UI,sans-serif" font-weight="800" font-size="22">87</text>
+            <text x="46" y="62" text-anchor="middle" fill="#5f6b7a" font-family="Cascadia Code,monospace" font-size="8.5">WALK SCORE</text>
+          </svg>
+          <div class="cap"><b>Nijiya Market</b> 0.4 mi · <b>Whole Foods</b> 0.8 mi · <b>Stoner Park</b> 0.5 mi<br>
+          Killer Noodle, Tsujita, Daikokuya — weekend waits run 45+ min. Eightfold Coffee works for remote days but gets loud.</div>
+        </div>
+        <div class="tip"><span class="t">Watch item</span>Stoner Park draws transient activity complaints at dusk.<div class="src">Google Maps Q&amp;A · Yelp</div></div>
+      </div>
+
+      <div class="card">
+        <span class="stamp caution">Monitor</span>
+        <h3>Nuisances &amp; hazards</h3>
+        <div class="verdict">freeway particulates are the real cost of the location</div>
+        <ul>
+          <li><b>Air quality</b> — 405 proximity means elevated PM2.5; fine black dust indoors with windows open. Run HEPA filters</li>
+          <li><b>Flooding</b> — not in a flood zone; minor ponding at Sawtelle/Macarthur after heavy rain (311 fix requested)</li>
+          <li><b>Pests</b> — no rodent flags in public records; verify with property inspection</li>
+        </ul>
+        <div class="tip"><span class="t">Sensor</span>PurpleAir #23562 (Wilshire/Bundy) — 6-month PM2.5 average tracked in production reports.</div>
+      </div>
+
+      <div class="card">
+        <span class="stamp caution">Watch</span>
+        <h3>Future developments</h3>
+        <div class="verdict">value upside, construction-noise downside</div>
+        <ul>
+          <li><b>Metro D Line extension</b> — Wilshire/Westwood station ~1.5 mi north; values expected to rise, construction noise for years</li>
+          <li><b>5-story mixed-use filed</b> — 12000 block of Sawtelle (West LA NC case 23-045); shadow and parking impacts under debate</li>
+          <li><b>Owner/rental diligence</b> — relisting cadence on Zillow/Redfin, LAHD rent-stabilization status, unlawful-detainer filings in county civil records</li>
+        </ul>
+        <div class="tip"><span class="t">Insider tip</span>Neighborhood Council minutes surface zoning fights months before the news does — case numbers are searchable in ZIMAS.</div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- data source catalog -->
+<section>
+  <div class="wrap">
+    <h2>Data source catalog — where the unfiltered truth lives</h2>
+    <div class="srcgrid">
+      <div class="srcbox"><div class="k"><b>A · Noise</b><span class="ct">7 sources</span></div><p>LA 311 noise complaints · LAX/SMO noise portals · Caltrans traffic census · event calendars · Nextdoor/Reddit crowd wisdom · venue reviews · noise-sensor APIs</p></div>
+      <div class="srcbox"><div class="k"><b>B · Neighbors</b><span class="ct">7 sources</span></div><p>Nextdoor feeds · subreddits · FB neighborhood groups · complex reviews · County Recorder (LLC landlords) · Megan's Law · Zillow/Redfin turnover</p></div>
+      <div class="srcbox"><div class="k"><b>C · Schools</b><span class="ct">7 sources</span></div><p>GreatSchools + parent reviews · Niche · LAUSD school finder · CA Dashboard · CDE DataQuest · parent groups · equity ratings</p></div>
+      <div class="srcbox"><div class="k"><b>D · Crime</b><span class="ct">8 sources</span></div><p>LAPD crime mapping · LA Open Data calls-for-service · SpotCrime · Citizen · NeighborhoodScout · LexisNexis · station feeds · UCLA Luskin analyses</p></div>
+      <div class="srcbox"><div class="k"><b>E · Commute</b><span class="ct">6 sources</span></div><p>Google Directions at peak · Waze historicals · Metro API · Walk/Bike Score · LADOT permit-district + sweeping maps · rideshare estimates</p></div>
+      <div class="srcbox"><div class="k"><b>F · Amenities</b><span class="ct">5 sources</span></div><p>Places/Yelp Fusion APIs · USDA food access · County Parks · library reviews · FCC broadband map</p></div>
+      <div class="srcbox"><div class="k"><b>G · Hazards</b><span class="ct">6 sources</span></div><p>LA Sanitation 311 · LADWP outage map · PurpleAir + AQMD · FEMA flood maps · EnviroStor toxics · pest signals from restaurant reviews</p></div>
+      <div class="srcbox"><div class="k"><b>H · Development</b><span class="ct">4 sources</span></div><p>City Planning ZIMAS + permits + EIRs · Urbanize/Curbed LA · Nextdoor rumblings · Neighborhood Council minutes</p></div>
+      <div class="srcbox"><div class="k"><b>I · Owner / rental</b><span class="ct">4 sources</span></div><p>Listing/relist history · ApartmentRatings + PM-company reviews · LAHD rent stabilization + code complaints · county eviction filings</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- roadmap -->
+<section>
+  <div class="wrap">
+    <h2>Implementation roadmap</h2>
+    <div class="rail">
+      <div class="step"><div class="t">Ingest</div><div class="d">ETL per source — APIs, scrapers, record downloads</div><div class="f">crime daily · social weekly · permits weekly · schools monthly</div></div>
+      <div class="step"><div class="t">Synthesize</div><div class="d">LLM turns raw counts into insider tips</div><div class="f">"15 Sat-night complaints" → "avoid street-facing bedrooms"</div></div>
+      <div class="step"><div class="t">Personalize</div><div class="d">Rank categories by user priorities (quiet vs schools vs commute)</div></div>
+      <div class="step"><div class="t">Protect</div><div class="d">Scrub PII; cite aggregate trends, never identifiable posts</div></div>
+      <div class="step"><div class="t">Monetize</div><div class="d">Freemium base report</div><div class="f">premium: anonymous neighbor survey · disclosure history · new metros</div></div>
+    </div>
+  </div>
+</section>
+
+<footer class="foot">
+  <div class="wrap">
+    <h2 style="font-size:13px;font-family:var(--mono);letter-spacing:.2em;text-transform:uppercase;color:var(--faint);margin:0 0 18px;display:flex;align-items:center;gap:12px">Sources as cited in report<span style="content:'';flex:1;height:1px;background:var(--line)"></span></h2>
+    <div class="cols">
+      <div data-n="01">Nextdoor — 0.5 mi radius, "noise / neighbor / crime", Jan 2023–Oct 2024</div>
+      <div data-n="02">Reddit — r/LosAngeles, r/AskLosAngeles, r/Sawtelle keyword search</div>
+      <div data-n="03">LAPD Crime Mapping — Oct 2023–Oct 2024, 1 mi radius</div>
+      <div data-n="04">LA Open Data 311 — Macarthur Ave segment, Sawtelle↔Corinth</div>
+      <div data-n="05">LADBS — active permits within 0.25 mi, trailing 12 months</div>
+      <div data-n="06">LA City Planning ZIMAS — parcel + adjacent parcels</div>
+      <div data-n="07">GreatSchools — assigned-school ratings + parent reviews</div>
+      <div data-n="08">Niche — University High, Westwood Charter reviews</div>
+      <div data-n="09">PurpleAir — sensor 23562, Wilshire/Bundy, 6-mo PM2.5</div>
+      <div data-n="10">LAWA Noise Portal — LAX/SMO contours and flight paths</div>
+      <div data-n="11">Google Maps / Yelp — dated review scrapes, nearby venues</div>
+      <div data-n="12">West LA Sawtelle Neighborhood Council — minutes Q3–Q4 2024</div>
+      <div data-n="13">LAHD — rent stabilization + code complaint lookup</div>
+      <div data-n="14">FCC Broadband Map — providers serving 90025</div>
+      <div data-n="15">CurbID (hypothetical aggregator) — transactions, HOA docs</div>
+    </div>
+    <div class="disc">⚠ Simulated sample for product illustration. Production reports link every claim to scraped, timestamped source data. PII scrubbed; aggregate trends only.</div>
+  </div>
+</footer>
+
+</body>
+</html>

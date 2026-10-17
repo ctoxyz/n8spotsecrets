@@ -1,0 +1,29 @@
+# private planning docs stay on disk, never in the public repo
+Proptech*Plan.md
+_private/
+
+# secrets and local config
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+secrets.*
+credentials*
+
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+
+# editors and os
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.log
