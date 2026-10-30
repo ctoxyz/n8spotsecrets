@@ -27,7 +27,8 @@ class Base(unittest.TestCase):
         noise._LAYERS.clear()
 
     def tearDown(self):
-        H.TRANSPORT = None
+        # never fall back to the real network: background threads from a test can outlive it
+        H.TRANSPORT = lambda url, params, data: RuntimeError("offline test: network disabled")
         noise._LAYERS.clear()
 
 
