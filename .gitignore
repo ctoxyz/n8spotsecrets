@@ -27,3 +27,6 @@ build/
 .DS_Store
 Thumbs.db
 *.log
+
+# the example env file is documentation, not a secret
+!.env.example

@@ -8,11 +8,31 @@ No keys, no account, no login.
 
 Built in Los Angeles for the rentals section of [n8dog.com](https://n8dog.com/rentals/).
 
-## Status: prototype
+## Status: live
 
-The reports in this repo are hand-built mockups for three Los Angeles
-addresses. They show what the finished report looks like. The Python package
-that builds one from live data is the next thing to land here.
+The Python package in `n8spotsecrets/` builds a report from live public data
+in a few seconds. It runs on the rentals page of
+[n8dog.com](https://n8dog.com/rentals/): type an address and the report comes
+back. The three HTML reports further down are the hand-built prototypes that
+set the target.
+
+## Run it
+
+```
+pip install .
+n8spotsecrets "548 S Spring St, Los Angeles, CA 90013"
+n8spotsecrets "548 S Spring St, Los Angeles, CA 90013" --asking 2400 --beds 1 --json
+```
+
+Plain Python 3.10+, no dependencies. Or without installing:
+`python -m n8spotsecrets "548 S Spring St, Los Angeles"`.
+
+Every source answers in parallel inside a time budget (9 s by default). A
+source that is slow or down shows as "no data" and the rest of the report
+still prints.
+
+Tests run offline, no network and no keys:
+`python -m unittest discover -s tests -v`
 
 ## What is in the folder
 
@@ -25,20 +45,33 @@ that builds one from live data is the next thing to land here.
 | `schema-skidrow.md`, `schema-westside.md` | the data model, two neighborhoods |
 | `json_snippet.json` | a sample of the report data shape |
 | `docs/` | images for this page |
+| `n8spotsecrets/` | the package: `geocode.py`, `report.py`, one file per source in `sources/`, `cli.py` |
+| `tests/` | offline tests with recorded response shapes |
+| `pyproject.toml` | `pip install .` gives you the `n8spotsecrets` command |
 
 Open any of the HTML files in a browser, or open them live from the links at the bottom of this page. That is the whole demo.
 
 ## What a report covers
 
-| section | what it answers | source, free and keyless |
+| section | what it answers | source |
 |---|---|---|
-| Safety | crimes within 500 m, last 90 days, by type | LA City open data |
-| Noise | distance to freeways and rail, bars and clubs within 250 m | OpenStreetMap |
-| Building | year built, units, permits, open code cases, rent-stabilized or not | LA County assessor, LADBS, LAHD |
-| Complaints | 311 requests at the address, last 12 months | MyLA311 |
-| Hazards | flood zone, fire severity zone, fault zone | FEMA, CAL FIRE, CA Geological Survey |
-| Price check | asking rent vs the tract median | Census ACS |
-| Walkability | grocery, transit, pharmacy within 800 m | OpenStreetMap |
+| Building | year built, units, use, likely rent-stabilized (RSO) or not | LA County assessor parcels |
+| Permits | building permits within 60 m, last 5 years | LADBS (LA City open data) |
+| Complaints | open and closed code cases, habitability violations, by parcel | LADBS, LAHD |
+| Safety | incidents within 500 m and how many were violent | LAPD (LA City open data) |
+| Hazards | flood zone, state fault traces within 300 m, hillside red-flag fire area | FEMA, CA Geological Survey, LAFD |
+| Noise | freeways and rail within 250 m, major roads within 150 m | US Census TIGERweb |
+| Price check | asking rent vs the tract median, ZIP median when the tract is suppressed | US Census ACS |
+| Walkability | grocery, transit, pharmacy within 800 m | next release |
+
+Read the dates. LAPD's open crime data ends on 2024-12-30, when the city
+moved to a new reporting system, so Safety counts calendar 2024 and says so.
+Rent stabilization is derived from the parcel record (City of LA, built
+before October 1978, two or more units); confirm it on ZIMAS or with LAHD.
+
+Coverage: the City of Los Angeles gets every section. The rest of LA County
+gets building, hazards, noise and price; those cities keep their own permit,
+code and police data, and the report says which sections are missing.
 
 ## Why not just read the listing
 
@@ -61,7 +94,9 @@ placed on the rental card instead of on its own site.
 
 ## Rules of the road
 
-- No API keys, credentials or paid services. Every source stays public and keyless.
+- No credentials or paid services, ever. Every source is public. The one key
+  the report can use is the free US Census key for the price check, read from
+  your own environment (`CENSUS_API_KEY`); without it that section is skipped.
 - Be polite to the open data portals: cache, rate-limit, identify the project in the user agent.
 - Informational only. Not a tenant screening report and not legal advice.
 
