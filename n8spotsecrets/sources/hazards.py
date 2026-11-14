@@ -1,11 +1,15 @@
 """Hazards at the point: FEMA flood zone, CGS Alquist-Priolo fault traces, LAFD Red Flag hillside area,
 and a best-effort CAL FIRE hazard-severity lookup (silently skipped if the service is not reachable).
+Also the state's liquefaction and landslide zones (CGS Seismic Hazard Zones) and the city's soft-story retrofit list.
 """
-from ..http import SourceError, arcgis_query
+from ..http import SourceError, arcgis_query, socrata
 
 FEMA_ZONES = "https://hazards.fema.gov/arcgis/rest/services/public/NFHL/MapServer/28"
 CGS_FAULTS = "https://gis.conservation.ca.gov/server/rest/services/CGS_Earthquake_Hazard_Zones/SHP_Fault_Traces/MapServer/0"
 LAFD_RED_FLAG = "https://maps.lacity.org/lahub/rest/services/Fire_Department/MapServer/7"
+CGS_LIQUEFACTION = "https://services2.arcgis.com/zr3KAIbsRSUyARHG/arcgis/rest/services/CGS_Liquefaction_Zones/FeatureServer/0"
+CGS_LANDSLIDE = "https://services2.arcgis.com/zr3KAIbsRSUyARHG/arcgis/rest/services/CGS_Landslide_Zones/FeatureServer/0"
+SOFT_STORY = "dqq4-799r"    # LADBS Soft-Story Compliance, data.lacity.org
 CALFIRE_CANDIDATES = [
     "https://services1.arcgis.com/jUJYIo9tSA7EHvfZ/arcgis/rest/services/FHSZ_SRA_LRA_Combined/FeatureServer/0",
     "https://services1.arcgis.com/jUJYIo9tSA7EHvfZ/arcgis/rest/services/FHSZ_LRA_Recommended/FeatureServer/0",
@@ -57,3 +61,32 @@ def calfire(lat, lon, timeout=3.0):
         except SourceError as e:
             last = e
     raise SourceError("CAL FIRE service unavailable: %s" % last)
+
+
+def ground(lat, lon, timeout=4.0):
+    """Inside a state-mapped liquefaction or earthquake-landslide zone?"""
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=2) as ex:      # side by side: the pair costs the slower one, not the sum
+        a = ex.submit(arcgis_query, CGS_LIQUEFACTION, lat, lon, timeout=timeout, out_fields="QUAD_NAME", max_records=1)
+        b = ex.submit(arcgis_query, CGS_LANDSLIDE, lat, lon, timeout=timeout, out_fields="QUAD_NAME", max_records=1)
+        rows, ms = a.result()
+        rows2, ms2 = b.result()
+    return {"liquefaction_zone": bool(rows), "landslide_zone": bool(rows2), "ms": max(ms, ms2)}
+
+
+def soft_story(house_no, street, timeout=4.0):
+    """Is this address on the city's mandatory soft-story retrofit list, and is the work signed off?"""
+    if not house_no or not street:
+        raise SourceError("no street address to look up")
+    addr = ("%s %s" % (house_no, street)).upper().replace("'", "''").strip()
+    rows, ms = socrata("data.lacity.org", SOFT_STORY, {"$where": "upper(address) like '%s%%'" % addr, "$limit": "5"}, timeout=timeout)
+    if not rows:
+        return {"listed": False, "ms": ms}
+    r = rows[0]
+
+    def d(k):
+        v = r.get(k)
+        return str(v)[:10] if v else None
+    done = d("cofc_issued") or d("permit_finaled")
+    return {"listed": True, "address": r.get("address"), "permit": r.get("permit"), "permit_issued": d("issued"),
+            "completed": done, "deadline": d("step3_tollingextdate") or d("step_3_compl_date"), "ms": ms}

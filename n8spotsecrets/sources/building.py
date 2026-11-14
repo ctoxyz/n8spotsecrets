@@ -1,15 +1,40 @@
-"""Building: LA County assessor parcel at the point + LADBS permits within 60 m.
+"""Building: LA County assessor parcel for the address + LADBS permits within 60 m.
 
-parcel()  -> ain, apn_dashed, year_built, units, use, sqft, beds, baths, situs
+parcel()  -> ain, apn_dashed, year_built, units, use, sqft, beds, baths, situs, match, parcel_count
 permits() -> count_5y, count_total, recent[] (date, type, description, status)
+
+0.2.2: the parcel used to be "the best of the first 8 parcels within 40 m of the point".
+The Census point sits in the street, often 70 m from the building, and the county
+service applies its record cap before its distance test, so that search returned
+nothing (453 S Spring) or a neighbor (541 for 548 S Spring). Now:
+  1. look the parcel up by its assessor address (house number + street name),
+     keeping only rows on the same street within 500 m of the point;
+  2. if the assessor has no such address, ask the ArcGIS geocoder for the rooftop
+     point of the address and take the parcel that contains it;
+  3. otherwise report no parcel. A neighbor is never returned.
+A condo building is many parcels at one address; they are summed into one record.
 """
+import math
 import re
+import time
+from collections import Counter
 from datetime import datetime, timedelta, timezone
 
-from ..http import SourceError, arcgis_query, pick, socrata
+from .. import geocode as _geo
+from ..http import SourceError, arcgis_query, get_json, pick, socrata
 
 PARCEL_LAYER = "https://public.gis.lacounty.gov/public/rest/services/LACounty_Cache/LACounty_Parcel/MapServer/0"
+PARCEL_FIELDS = ("AIN,SitusHouseNo,SitusFraction,SitusDirection,SitusUnit,SitusStreet,SitusCity,SitusZIP,"
+                 "UseCode,UseType,UseDescription,YearBuilt1,EffectiveYear1,Units1,Bedrooms1,Bathrooms1,SQFTmain1,"
+                 "CENTER_LAT,CENTER_LON")
+PARCEL_MAX_ROWS = 1000        # the layer's maxRecordCount
+SAME_ADDRESS_M = 500          # an assessor row with this house number and street must be this close to the point
 LADBS = [("pi9x-tg5x", "2020+"), ("dyxf-7hc4", "2010-2019")]   # issued permits, data.lacity.org
+
+_DIRS = {"N": "N", "S": "S", "E": "E", "W": "W", "NORTH": "N", "SOUTH": "S", "EAST": "E", "WEST": "W"}
+_TYPES = {"ST", "STREET", "AVE", "AVENUE", "BLVD", "BOULEVARD", "DR", "DRIVE", "RD", "ROAD", "PL", "PLACE", "WAY",
+          "LN", "LANE", "CT", "COURT", "TER", "TERRACE", "PKWY", "PARKWAY", "HWY", "HIGHWAY", "CIR", "CIRCLE",
+          "WALK", "ALY", "ALLEY", "TRL", "TRAIL", "SQ", "SQUARE"}
 
 
 def _int(v):
@@ -19,68 +44,172 @@ def _int(v):
         return None
 
 
-def _norm_street(s):
-    s = re.sub(r"[^A-Z0-9 ]", "", str(s or "").upper())
-    s = re.sub(r"\b(STREET|ST)\b", "ST", s)
-    s = re.sub(r"\b(AVENUE|AVE)\b", "AVE", s)
-    s = re.sub(r"\b(BOULEVARD|BLVD)\b", "BLVD", s)
-    s = re.sub(r"\b(DRIVE|DR)\b", "DR", s)
-    s = re.sub(r"\b(ROAD|RD)\b", "RD", s)
-    s = re.sub(r"\b(PLACE|PL)\b", "PL", s)
-    return re.sub(r"\s+", " ", s).strip()
+def _year(v):
+    y = _int(v)
+    return y if y and 1800 <= y <= 2100 else None
 
 
-def _score(r, house_no, street):
-    """Lower is better: same street, nearest and same-parity house number, residential over parking/vacant."""
-    sc = 0
-    hn = re.sub(r"[^\d]", "", str(pick(r, r"^SitusHouseNo$", default="")))
-    st = _norm_street(" ".join(str(pick(r, k, default="")) for k in (r"^SitusDirec", r"^SitusStreet$")))
-    if street:
-        want = _norm_street(street)
-        if want and st and (want in st or st in want):
-            sc -= 1000
-    if house_no and hn:
+def _street_parts(s):
+    """'S SPRING ST.' -> ('S', 'SPRING');  'WILSHIRE BLVD' -> (None, 'WILSHIRE');  'W AVENUE 26' -> ('W', 'AVENUE 26')."""
+    t = re.sub(r"[^A-Z0-9 ]", " ", str(s or "").upper()).split()
+    d = None
+    if len(t) >= 2 and t[0] in _DIRS:
+        d = _DIRS[t[0]]
+        t = t[1:]
+    if len(t) >= 2 and t[-1] in _TYPES:
+        t = t[:-1]
+    return d, " ".join(t)
+
+
+def _dist_m(lat1, lon1, lat2, lon2):
+    x = math.radians(lon2 - lon1) * math.cos(math.radians((lat1 + lat2) / 2.0))
+    y = math.radians(lat2 - lat1)
+    return 6371000.0 * math.hypot(x, y)
+
+
+def _same_street(row, want_dir, want_core):
+    rd, rcore = _street_parts(row.get("SitusStreet"))
+    if not rcore or rcore != want_core:
+        return False
+    d = _DIRS.get(str(row.get("SitusDirection") or "").strip().upper()) or rd
+    return not (want_dir and d and want_dir != d)
+
+
+def _by_address(lat, lon, house_no, street, timeout):
+    """Assessor rows whose situs is this house number on this street, near the point."""
+    hn = re.sub(r"[^0-9]", "", str(house_no or ""))
+    want_dir, want_core = _street_parts(street)
+    if not hn or not want_core:
+        return [], 0
+    where = "SitusHouseNo='%s' AND SitusStreet LIKE '%s%%'" % (hn, want_core.replace("'", "''"))
+    j, ms = get_json(PARCEL_LAYER + "/query", {
+        "where": where, "outFields": PARCEL_FIELDS, "returnGeometry": "false",
+        "resultRecordCount": str(PARCEL_MAX_ROWS), "f": "json",
+    }, timeout=timeout)
+    rows = []
+    for f in j.get("features") or []:
+        a = f.get("attributes") or {}
+        if not _same_street(a, want_dir, want_core):
+            continue
         try:
-            a, b = int(house_no), int(hn)
-            sc += min(abs(a - b), 400)
-            if (a % 2) != (b % 2):
-                sc += 300
-        except ValueError:
-            pass
-    elif house_no:
-        sc += 200
-    use = str(pick(r, r"^UseDescription$", r"^UseDesc", r"^UseType$", default="")).upper()
-    if "PARKING" in use or "VACANT" in use:
-        sc += 250
-    return sc
+            d = _dist_m(lat, lon, float(a["CENTER_LAT"]), float(a["CENTER_LON"]))
+        except (KeyError, TypeError, ValueError):
+            continue
+        if d <= SAME_ADDRESS_M:
+            rows.append(a)
+    return rows, ms
+
+
+def _by_point(lat, lon, timeout):
+    """Assessor rows whose polygon contains the point (a condo building returns one row per unit)."""
+    return arcgis_query(PARCEL_LAYER, lat, lon, timeout=timeout, out_fields=PARCEL_FIELDS, max_records=PARCEL_MAX_ROWS)
+
+
+def _is_residential(r):
+    return str(r.get("UseCode") or "").strip().startswith("0") or str(r.get("UseType") or "").strip().lower() == "residential"
+
+
+def _most_common(vals, tie=min):
+    vals = [v for v in vals if v not in (None, "")]
+    if not vals:
+        return None
+    c = Counter(vals)
+    top = max(c.values())
+    return tie(v for v, n in c.items() if n == top)
+
+
+def _summarize(rows, match, house_no, ms):
+    rows = sorted(rows, key=lambda r: str(r.get("AIN") or ""))
+    rep = next((r for r in rows if not str(r.get("SitusUnit") or "").strip()), rows[0])
+    n = len(rows)
+    ain = str(rep.get("AIN") or "").strip()
+    rep_hn = str(rep.get("SitusHouseNo") or "").strip()
+    if not rep_hn.strip("0"):
+        rep_hn = ""          # the assessor stores "0" when a parcel has no street number
+    d, core_street = _DIRS.get(str(rep.get("SitusDirection") or "").strip().upper()), re.sub(r"[.\s]+$", "", str(rep.get("SitusStreet") or "").strip())
+    bits = [rep_hn, str(rep.get("SitusFraction") or "").strip(), d or "", core_street]
+    if n == 1:
+        bits.append(str(rep.get("SitusUnit") or "").strip())
+    situs = " ".join(b for b in bits if b)
+    if n == 1:
+        year, eff = _year(rep.get("YearBuilt1")), _year(rep.get("EffectiveYear1"))
+        units, beds, baths, sqft = _int(rep.get("Units1")), _int(rep.get("Bedrooms1")), _int(rep.get("Bathrooms1")), _int(rep.get("SQFTmain1"))
+        use = pick(rep, r"^UseDescription$", r"^UseType$", r"^UseCode$")
+    else:
+        year = _most_common([_year(r.get("YearBuilt1")) for r in rows])
+        eff = _most_common([_year(r.get("EffectiveYear1")) for r in rows])
+        res = [r for r in rows if _is_residential(r)]
+        units = sum(_int(r.get("Units1")) or 0 for r in (res or rows))
+        if res and not units:
+            units = len(res)
+        beds = baths = None
+        sqft = sum(_int(r.get("SQFTmain1")) or 0 for r in rows) or None
+        with_unit = sum(1 for r in rows if str(r.get("SitusUnit") or "").strip())
+        if len(res) >= 2 and with_unit >= 2:
+            use = "Condominium building"
+        else:
+            use = _most_common([str(r.get("UseDescription") or "").strip() for r in (res or rows)], tie=lambda g: sorted(g)[0])
+    return {
+        "ain": ain,
+        "apn_dashed": "%s-%s-%s" % (ain[:4], ain[4:7], ain[7:]) if len(ain) == 10 else ain,
+        "year_built": year,
+        "effective_year": eff,
+        "units": units,
+        "beds": beds,
+        "baths": baths,
+        "sqft": sqft,
+        "use": use,
+        "situs": situs or "address not on the assessor record",
+        "situs_city": pick(rep, r"^SitusCity$"),
+        "situs_zip": pick(rep, r"^SitusZIP$"),
+        "parcels_nearby": n,
+        "parcel_count": n,
+        "parcel_count_capped": n >= PARCEL_MAX_ROWS,
+        "match": match,
+        "matched_house_no": bool(house_no) and rep_hn == str(house_no).strip(),
+        "ms": ms,
+    }
 
 
 def parcel(lat, lon, house_no=None, street=None, timeout=4.0):
-    rows, ms = arcgis_query(PARCEL_LAYER, lat, lon, timeout=timeout, distance_m=40, max_records=8)
-    if not rows:
-        raise SourceError("no parcel within 40 m")
-    chosen = min(rows, key=lambda r: _score(r, house_no, street))
-    r = chosen
-    ain = str(pick(r, r"^AIN$", r"^APN$", default="")).strip()
-    street = " ".join(str(pick(r, k, default="")).strip() for k in (r"^SitusHouseNo$", r"^SitusFraction$", r"^SitusDirec", r"^SitusStreet$", r"^SitusUnit")).replace("  ", " ").strip()
-    out = {
-        "ain": ain,
-        "apn_dashed": "%s-%s-%s" % (ain[:4], ain[4:7], ain[7:]) if len(ain) == 10 else ain,
-        "year_built": _int(pick(r, r"^YearBuilt", r"YearBuilt1", r"^YearBlt")),
-        "effective_year": _int(pick(r, r"^EffectiveYear", r"EffYear")),
-        "units": _int(pick(r, r"^Units1?$", r"^Units", r"NumUnits")),
-        "beds": _int(pick(r, r"^Bedrooms", r"^Beds")),
-        "baths": _int(pick(r, r"^Bathrooms", r"^Baths")),
-        "sqft": _int(pick(r, r"^SQFTmain", r"^SqFt", r"BldgSqFt")),
-        "use": pick(r, r"^UseDescription$", r"^UseDesc", r"^UseType$", r"^UseCode"),
-        "situs": street or None,
-        "situs_city": pick(r, r"^SitusCity"),
-        "situs_zip": pick(r, r"^SitusZIP", r"^SitusZip"),
-        "parcels_nearby": len(rows),
-        "matched_house_no": bool(house_no) and str(pick(chosen, r"^SitusHouseNo$", default="")).strip() == str(house_no),
-        "ms": ms,
-    }
-    return out
+    t0 = time.time()
+    deadline = t0 + max(1.0, timeout)
+
+    def left(cap):
+        return max(0.5, min(cap, deadline - time.time()))
+
+    why = []
+    if house_no and street:
+        try:
+            rows, _ = _by_address(lat, lon, house_no, street, left(3.5))
+            if rows:
+                return _summarize(rows, "address", house_no, int((time.time() - t0) * 1000))
+            why.append("the assessor has no %s on this street" % house_no)
+        except SourceError as e:
+            why.append("assessor address lookup failed (%s)" % str(e)[:60])
+        roof = None
+        if time.time() < deadline - 0.6:
+            try:
+                roof = _geo.rooftop(house_no, street, lat, lon, timeout=left(2.5))
+            except SourceError as e:
+                why.append("rooftop lookup failed (%s)" % str(e)[:60])
+        if roof and time.time() < deadline - 0.4:
+            try:
+                rows, _ = _by_point(roof["lat"], roof["lon"], left(4.0))
+            except SourceError as e:
+                rows = []
+                why.append("assessor point lookup failed (%s)" % str(e)[:60])
+            if rows:
+                return _summarize(rows, "rooftop", house_no, int((time.time() - t0) * 1000))
+            why.append("no parcel under the rooftop point")
+        elif not roof:
+            why.append("no rooftop point for it")
+    else:
+        rows, _ = _by_point(lat, lon, left(4.0))
+        if rows:
+            return _summarize(rows, "point", None, int((time.time() - t0) * 1000))
+        why.append("no parcel contains this point")
+    raise SourceError("no parcel: " + "; ".join(why)[:150])
 
 
 import threading
@@ -144,6 +273,10 @@ def permits(lat, lon, timeout=4.0):
                 errors.append("%s: %s" % (dsid, str(e)[:80] or "timeout"))
     if not rows_all and errors:
         raise SourceError("; ".join(errors)[:200])
+    recent_set = [e for e in errors if e.startswith(LADBS[0][0])]
+    if recent_set:
+        # the five-year count lives in the 2020+ set; without it "0 permits in 5 years" would be a guess
+        raise SourceError("LADBS permits since 2020 did not answer (%s)" % recent_set[0][:120])
 
     def pdate(r):
         v = pick(r, r"issue_date", r"^issue", r"status_date", r"date")

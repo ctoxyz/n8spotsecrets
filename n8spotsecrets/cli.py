@@ -12,7 +12,8 @@ from .report import build_report, VERSION
 
 ORDER = [
     ("building", "Building"), ("complaints", "Complaints"), ("permits", "Permits"), ("safety", "Safety"),
-    ("hazards", "Hazards"), ("noise", "Noise"), ("price", "Price check"), ("walkability", "Walkability"),
+    ("hazards", "Hazards"), ("noise", "Noise"), ("price", "Price check"), ("transit", "Transit"),
+    ("amenities", "Amenities"), ("connectivity", "Internet"), ("street", "Street"), ("people", "People"),
 ]
 MARK = {"ok": "+", "partial": "~", "skipped": ".", "no_data": "-"}
 
