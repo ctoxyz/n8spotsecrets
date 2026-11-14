@@ -114,6 +114,17 @@ def _close(conn):
         pass
 
 
+def _forget_tls_error():
+    """A TLS read or write that fails can leave its error behind for this thread. Python then reports the next
+    request that merely has to wait for its answer as that old error (seen on Python 3.13 with OpenSSL 3.5: one
+    dead connection, then "Broken pipe" on every healthy one in the same thread). Starting a handshake on a
+    connection to nowhere makes the TLS library drop what it was holding. About 0.1 ms; only called after a failure."""
+    try:
+        _CTX.wrap_bio(ssl.MemoryBIO(), ssl.MemoryBIO(), server_hostname="localhost").do_handshake()
+    except Exception:
+        pass
+
+
 def _handshake(host, timeout):
     """One TCP connect + TLS handshake with a time limit. Returns the open connection or raises."""
     conn = http.client.HTTPSConnection(host, timeout=timeout, context=_CTX)
@@ -143,6 +154,7 @@ def _usable(conn, since):
             return True
         return False
     except Exception:
+        _forget_tls_error()
         return False
 
 
@@ -364,6 +376,7 @@ def _pooled(host, target, headers, data, deadline):
             except Exception as e:
                 _close(conn)
                 conn = None
+                _forget_tls_error()
                 msg = str(e) or e.__class__.__name__
                 timed_out = isinstance(e, TimeoutError) or "timed out" in msg
                 if reused and first and data is None and not timed_out and isinstance(e, (http.client.HTTPException, OSError)):
@@ -426,6 +439,7 @@ def get_json(url, params=None, timeout=5.0, data=None, headers=None):
                 body = r.read()
             break
         except _ConnectFailed as e:
+            _forget_tls_error()
             if last or deadline - time.time() < 0.6:
                 raise SourceError("connection failed after %d tr%s: %s" % (tries, "y" if tries == 1 else "ies", str(e)[:110])) from None
             time.sleep(0.15)
@@ -436,6 +450,7 @@ def get_json(url, params=None, timeout=5.0, data=None, headers=None):
                 detail = ""
             raise SourceError("HTTP %d %s" % (e.code, detail)) from None
         except Exception as e:
+            _forget_tls_error()
             raise SourceError(str(e)[:160]) from None
     try:
         j = json.loads(body.decode(errors="replace"))

@@ -16,9 +16,9 @@ from datetime import datetime, timezone
 from . import geocode as geo
 from . import http as _http
 from .http import SourceError
-from .sources import amenities, building, cases, connectivity, crime, hazards, noise, people, price, street, transit
+from .sources import amenities, assisted, building, cases, connectivity, crime, hazards, noise, people, price, rentlist, street, transit, veterans
 
-VERSION = "0.2.10"
+VERSION = "0.2.12"
 RSO_CUTOFF_YEAR = 1978   # LA RSO: built on or before Oct 1, 1978, 2+ units, in the City of LA
 
 SOURCES = [
@@ -52,8 +52,11 @@ SOURCES = [
     ("LAHD tenant buyout filings by property (ci3m-f23k)", "https://data.lacity.org/"),
     ("LAHD landlord declarations by property (vpax-89xu)", "https://data.lacity.org/"),
     ("LAHD affordable housing projects list (mymu-zi3s)", "https://data.lacity.org/"),
+    ("LAHD rent-stabilized units by parcel (RSO dashboard, read once a year)", "https://housing.lacity.gov/rso"),
     ("HUD fair market rents and housing choice vouchers by tract", "https://hudgis-hud.opendata.arcgis.com/"),
     ("LA County airport noise contours", "https://egis-lacounty.hub.arcgis.com/"),
+    ("HUD Multifamily Properties, Assisted and Insured: manager and inspection score", "https://hudgis-hud.opendata.arcgis.com/"),
+    ("VA medical centers, clinics and Vet Centers (VHA)", "https://www.va.gov/find-locations/"),
 ]
 
 DISCLAIMER = ("Public records, pulled live. Not legal advice, not a tenant screen, not a substitute for seeing the unit. "
@@ -107,7 +110,9 @@ def _headline_building(p, rso):
         bits.append("%s unit%s" % (p["units"], "" if p["units"] == 1 else "s"))
     if p.get("use"):
         bits.append(str(p["use"]).title())
-    if rso.get("likely") is True:
+    if rso.get("registered_units"):
+        bits.append("%s rent-stabilized unit%s on the city's %s list" % (rso["registered_units"], "" if rso["registered_units"] == 1 else "s", rso.get("registered_year")))
+    elif rso.get("likely") is True:
         bits.append("likely rent-stabilized (RSO)")
     elif rso.get("likely") is False and rso.get("reason"):
         bits.append("not RSO (%s)" % rso["reason"])
@@ -133,6 +138,25 @@ def _rso(p, la_city):
         return {"likely": None, "reason": "built %s but the unit count is not on the parcel record; check ZIMAS" % yb}
     return {"likely": True, "reason": "built %s, %s units, City of LA — meets the RSO test; confirm on ZIMAS or with LAHD" % (yb, units if units is not None else "2+"),
             "derived": True}
+
+
+def _rso_listed(rso, ains, la_city):
+    """Add what the city's own list says. The list is the city's record; the age test is only our reading of the rule."""
+    if not la_city or not ains:
+        return rso
+    try:
+        reg = rentlist.registered(ains)
+    except Exception as e:                       # a damaged list is said out loud, never read as "not listed"
+        return dict(rso, registered_error=str(e)[:160])
+    out = dict(rso, registered_units=reg["units"], registered_year=reg["year"], registered_read=reg["read"],
+               registered_parcels=reg["parcels_listed"], parcels_checked=reg["parcels_checked"])
+    if reg["units"]:
+        out.update(likely=True, derived=False, test_reason=rso.get("reason"),
+                   reason="the city's %s list has %d rent-stabilized unit%s here" % (reg["year"], reg["units"], "" if reg["units"] == 1 else "s"))
+    elif rso.get("likely") is True:
+        out.update(likely=None, test_reason=rso.get("reason"),
+                   reason="meets the age test, but the city's %s list has no rent-stabilized units at this property; ask LAHD" % reg["year"])
+    return out
 
 
 def build_report(address=None, lat=None, lon=None, census_key=None, budget_s=9.0, asking=None, beds=None):
@@ -163,7 +187,8 @@ def build_report(address=None, lat=None, lon=None, census_key=None, budget_s=9.0
     coverage = "full" if la_city else ("partial" if g.get("la_county") else "minimal")
 
     # ── stage 2: everything that only needs the point
-    pool = ThreadPoolExecutor(max_workers=28)
+    rentlist.warm()
+    pool = ThreadPoolExecutor(max_workers=34)
     futs = {
         "parcel": pool.submit(_run, building.parcel, g["lat"], g["lon"], g.get("house_no"), g.get("street"), budget.left(cap=6.0)),
         "flood": pool.submit(_run, hazards.flood, g["lat"], g["lon"], budget.left(cap=4.0)),
@@ -177,6 +202,10 @@ def build_report(address=None, lat=None, lon=None, census_key=None, budget_s=9.0
     futs["air"] = pool.submit(_run, street.air, g["lat"], g["lon"], budget.left(cap=4.5))
     futs["ground"] = pool.submit(_run, hazards.ground, g["lat"], g["lon"], budget.left(cap=4.5))
     futs["vouchers"] = pool.submit(_run, people.vouchers, g.get("tract_geoid"), g["lat"], g["lon"], budget.left(cap=3.0))
+    futs["assisted"] = pool.submit(_run, assisted.assisted, g["lat"], g["lon"], g.get("house_no"), g.get("street"), budget.left(cap=4.5))
+    futs["va"] = pool.submit(_run, veterans.facilities, g["lat"], g["lon"], budget.left(cap=4.0))
+    if census_key:
+        futs["vets_tract"] = pool.submit(_run, veterans.tract, g.get("tract_geoid"), census_key, budget.left(cap=4.0))
     if la_county:
         futs["providers"] = pool.submit(_run, connectivity.providers, g["lat"], g["lon"], budget.left(cap=4.5))
         futs["homeless"] = pool.submit(_run, street.homeless, g["lat"], g["lon"], budget.left(cap=4.5))
@@ -229,7 +258,11 @@ def build_report(address=None, lat=None, lon=None, census_key=None, budget_s=9.0
         return (val if st == "ok" else None), (None if st == "ok" else val)
 
     p, perr = got("parcel")
-    rso = _rso(p, la_city) if p else {"likely": None, "reason": "no parcel"}
+    ains = None
+    if p:
+        p = dict(p)
+        ains = p.pop("ains", None) or ([p["ain"]] if p.get("ain") else None)
+    rso = _rso_listed(_rso(p, la_city), ains, la_city) if p else {"likely": None, "reason": "no parcel"}
     ev, everr = got("evictions")
     hf, hferr = got("housing_file")
     if hf and hf.get("buyouts"):
@@ -442,6 +475,46 @@ def build_report(address=None, lat=None, lon=None, census_key=None, budget_s=9.0
     else:
         sections["subsidy"] = _section("no_data", error=voerr)
 
+    hud, huderr = got("assisted")
+    if hud:
+        here, near = hud.get("here") or [], hud.get("nearby") or []
+        bits = []
+        if here:
+            bits.append("HUD-assisted: %s" % (here[0].get("name") or "this building"))
+            if here[0].get("manager"):
+                bits.append("managed by %s" % here[0]["manager"])
+            if here[0].get("score"):
+                bits.append("inspection score %s" % here[0]["score"])
+        else:
+            bits.append("not on HUD's list of assisted buildings")
+            if near:
+                bits.append("%d within %d m" % (len(near), assisted.NEAR_M))
+        sections["assisted"] = _section("ok", hud.get("ms"), data=hud, headline=" \u00b7 ".join(bits))
+    else:
+        sections["assisted"] = _section("no_data", error=huderr)
+
+    va, vaerr = got("va")
+    vt, vterr = got("vets_tract")
+    if va or vt:
+        bits = []
+        fac = (va or {}).get("facilities") or []
+        if fac:
+            d = fac[0]["distance_m"]
+            bits.append("%s %s" % (fac[0]["name"], ("%d m" % d) if d < 1000 else ("%.1f km" % (d / 1000.0))))
+        elif va:
+            bits.append("no VA site within %d km" % va["within_km"])
+        if vt:
+            bits.append("%d veteran%s in this tract" % (vt["veterans"], "" if vt["veterans"] == 1 else "s"))
+        vmiss = {}
+        if not va:
+            vmiss["facilities"] = str(vaerr)[:120]
+        if not vt and census_key:
+            vmiss["tract"] = str(vterr)[:120]
+        sections["veterans"] = _section("ok", max((va or {}).get("ms", 0), (vt or {}).get("ms", 0)), headline=" \u00b7 ".join(bits), data={
+            "facilities": fac, "count": (va or {}).get("count"), "within_km": (va or {}).get("within_km", veterans.WITHIN_KM), "tract": vt, "missing": vmiss})
+    else:
+        sections["veterans"] = _section("no_data", error=vaerr)
+
     if coverage == "partial":
         warnings.append("%s keeps its own permit, code-case and police data; this report shows the county and federal layers only." % (g.get("place") or "This city"))
     elif coverage == "minimal":
@@ -458,7 +531,9 @@ def build_report(address=None, lat=None, lon=None, census_key=None, budget_s=9.0
         reasons["housing_file_part"] = "; ".join("%s: %s" % kv for kv in sorted(hf["missing"].items()))[:160]
     if vo and vo.get("missing"):
         reasons["vouchers_part"] = "; ".join("%s: %s" % kv for kv in sorted(vo["missing"].items()))[:160]
-    _parts = ("places_named", "permits_2010s", "crime_near", "housing_file_part", "vouchers_part")
+    if hud and hud.get("missing"):
+        reasons["assisted_part"] = "; ".join("%s: %s" % kv for kv in sorted(hud["missing"].items()))[:160]
+    _parts = ("places_named", "permits_2010s", "crime_near", "housing_file_part", "vouchers_part", "assisted_part")
     incomplete = sorted(n for n in reasons if n not in _parts) + [n for n in _parts if n in reasons]
 
     return {

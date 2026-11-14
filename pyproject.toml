@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "n8spotsecrets"
-version = "0.2.10"
+version = "0.2.12"
 description = "Ask the address, not the listing: an address report for renters from free public data."
 readme = "README.md"
 license = { text = "MIT" }
@@ -26,3 +26,6 @@ n8spotsecrets = "n8spotsecrets.cli:main"
 
 [tool.setuptools]
 packages = ["n8spotsecrets", "n8spotsecrets.sources"]
+
+[tool.setuptools.package-data]
+n8spotsecrets = ["data/*.csv"]

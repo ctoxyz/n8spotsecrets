@@ -151,6 +151,7 @@ def _summarize(rows, match, house_no, ms):
             use = _most_common([str(r.get("UseDescription") or "").strip() for r in (res or rows)], tie=lambda g: sorted(g)[0])
     return {
         "ain": ain,
+        "ains": sorted({str(r.get("AIN") or "").strip() for r in rows} - {""}),      # every parcel of the building; not sent out
         "apn_dashed": "%s-%s-%s" % (ain[:4], ain[4:7], ain[7:]) if len(ain) == 10 else ain,
         "year_built": year,
         "effective_year": eff,

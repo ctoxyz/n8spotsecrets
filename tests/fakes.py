@@ -25,6 +25,25 @@ SANTA_MONICA = {
         "Counties": [{"NAME": "Los Angeles County"}],
     },
 }
+# ---- shapes read by probe 5 on 2026-11-14: VA sites, HUD-assisted and HUD-insured buildings. The rows carry people's
+# names and emails on the real service (contacts, HUD staff); the made-up ones here stand in for those columns.
+VA_SITES = [({"STA_NAME": "Los Angeles VA Clinic", "S_ADD1": "351 East Temple Street", "S_CITY": "Los Angeles", "S_STATE": "CA", "S_ZIP": "90012"}, -118.2389, 34.0513),
+            ({"STA_NAME": "West Los Angeles Vet Center", "S_ADD1": "5730 Uplander Way", "S_CITY": "Culver City", "S_STATE": "CA", "S_ZIP": "90230"}, -118.3845, 33.9841),
+            ({"STA_NAME": "East Los Angeles VA Clinic", "S_ADD1": "5400 East Olympic Boulevard", "S_CITY": "Commerce", "S_STATE": "CA", "S_ZIP": "90022"}, -118.1552, 34.0143)]
+HUD_TELACU = {"PROPERTY_NAME_TEXT": "TELACU PLAZA", "MGMT_AGENT_ORG_NAME": "TELACU Residential Management, Inc.", "ADDRESS_LINE1_TEXT": "1033 S Hope Street",
+              "STD_CITY": "Los Angeles                 ", "STD_ST": "CA", "TOTAL_ASSISTED_UNIT_COUNT": 39, "TOTAL_UNIT_COUNT": 40, "PROPERTY_CATEGORY_NAME": "Subsidized, No HUD Financing",
+              "REAC_LAST_INSPECTION_SCORE": "96", "REAC_LAST_INSPCT_RELEASE_DATE": 1771891200000, "PROJECT_MANAGER_NAME_TEXT": "TEST PERSON",
+              "MGMT_CONTACT_FULL_NAME": "TEST CONTACT", "MGMT_CONTACT_EMAIL_TEXT": "contact@example.org"}
+HUD_HERE = dict(HUD_TELACU, PROPERTY_NAME_TEXT="SPRING ARMS", MGMT_AGENT_ORG_NAME="O'Neil & Sons Management", ADDRESS_LINE1_TEXT="548 South Spring St",
+                REAC_LAST_INSPECTION_SCORE="89c*", TOTAL_ASSISTED_UNIT_COUNT=131)
+HUD_INSURED = {"PROPERTY_NAME_TEXT": "SPRING LOFTS", "ADDRESS_LINE1_TEXT": "548 S Spring Street", "MGMT_CONTACT_FULL_NAME": "TEST CONTACT"}
+GOOGLE_PLACE = {"id": "ChIJtest", "displayName": {"text": "Spring Street Lofts", "languageCode": "en"}, "formattedAddress": "548 S Spring St, Los Angeles, CA 90013, USA",
+                "location": {"latitude": 34.04712, "longitude": -118.25032}, "types": ["apartment_building", "point_of_interest"], "rating": 3.6, "userRatingCount": 41,
+                "googleMapsUri": "https://maps.google.com/?cid=1",
+                "reviews": [{"rating": 2, "relativePublishTimeDescription": "3 months ago", "text": {"text": "test review text one", "languageCode": "en"},
+                             "authorAttribution": {"displayName": "Test Author", "uri": "https://www.google.com/maps/contrib/1/reviews"},
+                             "googleMapsUri": "https://www.google.com/maps/reviews/1", "flagContentUri": "https://www.google.com/local/review/rap/report?1"},
+                            {"rating": 5, "relativePublishTimeDescription": "a year ago", "originalText": {"text": "x" * 1200}, "authorAttribution": {"displayName": "Second Author"}}]}
 ACS_HDR = ["NAME", "B25064_001E", "B25031_002E", "B25031_003E", "B25031_004E", "B25031_005E", "B19013_001E", "B01003_001E"]
 
 # ---- shapes recorded 2026-11-13 around 548 S Spring St (transit, businesses, internet, 311, air, people)
@@ -358,6 +377,16 @@ class Transport:
         self.calls = []
         self.asked = []
 
+    def _hud(self, p):
+        if "MGMT_AGENT_ORG_NAME = " in p.get("where", ""):
+            return {"features": [{"attributes": {"REAC_LAST_INSPECTION_SCORE": s}} for s in ("89", "78", "100", None, "58c*")]}
+        rows = [(HUD_TELACU, -118.2509, 34.0471)]
+        if "hud-here" in self.variant:
+            rows.insert(0, (HUD_HERE, -118.2504, 34.0472))
+        if "hud-none" in self.variant:
+            rows = []
+        return {"features": [{"attributes": dict(a), "geometry": {"x": x, "y": y}} for a, x, y in rows]}
+
     def __call__(self, url, p, data):
         self.calls.append(url)
         self.asked.append((url, dict(p or {})))
@@ -510,7 +539,33 @@ class Transport:
             if "'" in p.get("$where", "") or not re.fullmatch(r"apn = \d{10}", p.get("$where", "")):
                 return RuntimeError('HTTP 400 {"message":"Query coordinator error: query.soql.type-mismatch; Type mismatch for #IN, is text"}')  # as live, 14 Nov 2026
             return LAHD_AFFORDABLE if "affordable" in self.variant else []
+        if "Veterans_Health_Administration_Medical_Facilities" in url:
+            if "no-va" in self.variant:
+                return {"features": []}
+            return {"features": [{"attributes": a, "geometry": {"x": x, "y": y}} for a, x, y in VA_SITES]}
+        if "MULTIFAMILY_PROPERTIES_ASSISTED" in url:
+            if "hud-renamed" in self.variant:
+                return RuntimeError("service error: {'code': 400, 'message': 'Invalid URL'}")
+            return self._hud(p)
+        if "HUD_MultiFamily_Assisted" in url:
+            return self._hud(p)
+        if "HUD_Insured_Multifamily_Properties" in url:
+            return {"features": [{"attributes": dict(HUD_INSURED), "geometry": {"x": -118.2503, "y": 34.0471}}] if "insured" in self.variant else []}
+        if "places.googleapis.com" in url:
+            body = __import__("json").loads(data.decode())
+            if "google-refuses" in self.variant:
+                return RuntimeError('HTTP 403 {"error": {"code": 403, "message": "Places API (New) has not been used in project 1 before or it is disabled."}}')
+            if url.endswith(":searchNearby"):
+                if "google-old-types" in self.variant:
+                    return RuntimeError('HTTP 400 {"error": {"code": 400, "message": "Unsupported types: apartment_complex."}}')
+                return {} if "google-none-near" in self.variant else {"places": [dict(GOOGLE_PLACE)]}
+            far = dict(GOOGLE_PLACE, id="far", location={"latitude": 34.06, "longitude": -118.25})
+            return {"places": [far, dict(GOOGLE_PLACE, id="by-text")]} if "apartments" in body.get("textQuery", "") else {}
         if "api.census.gov" in url:
+            if "B21001" in p.get("get", ""):
+                if "no-vets" in self.variant:
+                    return RuntimeError("HTTP 503 from census")
+                return [["B21001_001E", "B21001_002E", "state", "county", "tract"], ["3150", "62", "06", "037", p.get("for", "")[6:]]]
             if "B25003" in p.get("get", ""):
                 return ACS_PEOPLE
             if "zip code" in p.get("for", ""):

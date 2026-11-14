@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import n8spotsecrets.http as H  # noqa: E402
 from n8spotsecrets import build_report  # noqa: E402
 from n8spotsecrets.cli import main as cli_main  # noqa: E402
-from n8spotsecrets.sources import noise  # noqa: E402
+from n8spotsecrets.sources import assisted, noise, rentlist, reviews, veterans  # noqa: E402
 from fakes import Transport  # noqa: E402
 
 LA = "548 S Spring St, Los Angeles, CA 90013"
@@ -21,10 +21,16 @@ SM = "1234 4th St, Santa Monica, CA 90401"
 
 
 class Base(unittest.TestCase):
+    # a small stand-in for the city's rent-stabilized list, so the tests do not change when the real list is refreshed:
+    # eleven homes of the 548 S Spring test building, and the Wilshire test parcel
+    RSO_LIST = dict({"51490360%02d" % n: 1 for n in range(20, 31)}, **{"4324001010": 684})
+
     def use(self, **kw):
         self.t = Transport(**kw)
         H.TRANSPORT = self.t
         noise._LAYERS.clear()
+        assisted._layer = None
+        rentlist._LIST = ({"year": "2026", "read": "2026-11-14"}, dict(self.RSO_LIST))
 
     def tearDown(self):
         # never fall back to the real network: background threads from a test can outlive it
@@ -659,6 +665,55 @@ class SharedConnections(Base):
         st = self.stats()
         self.assertEqual((st.get("stale_retried"), st["handshakes"]), (1, 2))
 
+    def _raw(self):
+        import socket
+        host, port = self.host.split(":")
+        c = H._CTX.wrap_socket(socket.create_connection((host, int(port)), timeout=4), server_hostname=host)
+        c.settimeout(4)
+        return c
+
+    def _ask(self, c, path):
+        c.sendall(("GET %s HTTP/1.1\r\nHost: x\r\n\r\n" % path).encode())
+        got = b""
+        while b'{"ok": 1}' not in got:
+            more = c.recv(4096)
+            if not more:
+                break
+            got += more
+        return got
+
+    def test_forgetting_a_tls_error_lets_the_next_read_wait(self):
+        # On Python 3.13 with OpenSSL 3.5, a read that fails on a dead connection leaves its error behind for the
+        # thread, and the next read that has to wait for its answer is reported as that old error ("Broken pipe").
+        good, dead = self._raw(), self._raw()
+        try:
+            self.assertIn(b'{"ok": 1}', self._ask(good, "/ok"))
+            self.assertIn(b'{"ok": 1}', self._ask(dead, "/drop"))      # the server hangs up after this answer
+            time.sleep(0.2)
+            try:
+                dead.sendall(b"GET /ok HTTP/1.1\r\nHost: x\r\n\r\n")
+                time.sleep(0.05)                                        # let the far end's reset arrive first
+                dead.recv(100)
+            except OSError:
+                pass
+            H._forget_tls_error()
+            self.assertIn(b'{"ok": 1}', self._ask(good, "/slow"))      # answers after a second
+        finally:
+            good.close()
+            dead.close()
+
+    def test_a_failed_request_cleans_up_after_itself(self):
+        real, real_forget, calls = H._usable, H._forget_tls_error, []
+        H._usable = lambda conn, since: True              # pretend the hang-up went unnoticed
+        H._forget_tls_error = lambda: (calls.append(1), real_forget())[1]
+        try:
+            self.assertEqual(self.get("/drop"), {"ok": 1})
+            time.sleep(0.2)
+            self.assertEqual(self.get("/ok"), {"ok": 1})
+        finally:
+            H._usable, H._forget_tls_error = real, real_forget
+        self.assertEqual(len(calls), 1)
+
     def test_http_error_is_reported_and_the_connection_is_kept(self):
         with self.assertRaises(H.SourceError) as cm:
             self.get("/missing")
@@ -822,7 +877,7 @@ class HousingFile(Base):
     def test_hud_is_never_asked_by_map_point_in_la_county(self):
         self.use()
         build_report(address=LA)
-        hud = [(u, p) for u, p in self.t.asked if "VTyQ9soqVukalItT" in u]
+        hud = [(u, p) for u, p in self.t.asked if "Fair_Market_Rents" in u or "Housing_Choice_Vouchers" in u]
         self.assertEqual(len(hud), 2)
         self.assertFalse([p for _, p in hud if "geometry" in p])
 
@@ -865,6 +920,67 @@ class HousingFile(Base):
             self.assertIn(dsid, names)
 
 
+class RentStabilizedList(Base):
+    """0.2.11: the city's own list of rent-stabilized units, by parcel."""
+
+    def test_one_parcel_on_the_list(self):
+        self.use()
+        b = build_report(address="11740 Wilshire Blvd, Los Angeles, CA")["sections"]["building"]
+        rso = b["data"]["rso"]
+        self.assertEqual((rso["likely"], rso["registered_units"], rso["registered_year"], rso["registered_parcels"], rso["parcels_checked"]), (True, 684, 2026, 1, 1))
+        self.assertIn("684 rent-stabilized units", rso["reason"])
+        self.assertIn("684 rent-stabilized units on the city's 2026 list", b["headline"])
+        self.assertNotIn("ains", b["data"])
+
+    def test_condo_building_adds_up_every_parcel(self):
+        self.use()
+        rso = build_report(address=LA)["sections"]["building"]["data"]["rso"]
+        self.assertEqual((rso["registered_units"], rso["registered_parcels"], rso["parcels_checked"]), (11, 11, 12))
+        self.assertTrue(rso["likely"])
+
+    def test_meets_the_age_test_but_is_not_on_the_list(self):
+        self.use()
+        rentlist._LIST = ({"year": "2026", "read": "2026-11-14"}, {})
+        b = build_report(address=LA)["sections"]["building"]
+        rso = b["data"]["rso"]
+        self.assertIsNone(rso["likely"])
+        self.assertEqual(rso["registered_units"], 0)
+        self.assertIn("no rent-stabilized units at this property", rso["reason"])
+        self.assertIn("built 1914", rso["test_reason"])
+        self.assertNotIn("rent-stabilized", b["headline"])
+
+    def test_outside_the_city_the_list_is_not_asked(self):
+        from n8spotsecrets.report import _rso_listed
+        self.use()
+        before = {"likely": None, "reason": "RSO is a City of Los Angeles ordinance; this address is outside the city"}
+        self.assertEqual(_rso_listed(before, ["4324001010"], False), before)
+        self.assertEqual(_rso_listed(before, None, True), before)
+
+    def test_a_damaged_list_is_said_out_loud(self):
+        import os
+        import tempfile
+        self.use()
+        d = tempfile.mkdtemp()
+        bad = os.path.join(d, "rso_units.csv")
+        with open(bad, "w", encoding="ascii") as f:
+            f.write("# year: 2026\n# read: 2026-11-14\n# parcels: 3\n# units: 9\n4324001010,684\n")      # says 3 parcels, holds 1
+        real = rentlist.PATH
+        rentlist.PATH, rentlist._LIST = bad, None
+        try:
+            rso = build_report(address="11740 Wilshire Blvd, Los Angeles, CA")["sections"]["building"]["data"]["rso"]
+        finally:
+            rentlist.PATH, rentlist._LIST = real, None
+        self.assertIn("damaged", rso["registered_error"])
+        self.assertNotIn("registered_units", rso)
+        self.assertTrue(rso["likely"])                    # the age test still stands on its own
+
+    def test_the_shipped_list_matches_its_own_totals(self):
+        meta, units = rentlist._load(rentlist.PATH)
+        self.assertEqual((len(units), sum(units.values())), (int(meta["parcels"]), int(meta["units"])))
+        self.assertGreater(len(units), 100000)
+        self.assertTrue(all(len(k) == 10 and k.isdigit() and v > 0 for k, v in units.items()))
+
+
 class Cli(Base):
     def test_cli_prints_report(self):
         self.use()
@@ -880,6 +996,178 @@ class Cli(Base):
         with redirect_stdout(buf):
             cli_main([LA, "--json"])
         self.assertTrue(json.loads(buf.getvalue())["ok"])
+
+
+class Veterans(Base):
+    def test_nearest_va_sites_and_the_tract_count(self):
+        self.use()
+        r = build_report(address=LA, census_key="test")
+        v = r["sections"]["veterans"]
+        self.assertEqual(v["status"], "ok")
+        names = [f["name"] for f in v["data"]["facilities"]]
+        self.assertEqual(names, ["Los Angeles VA Clinic", "East Los Angeles VA Clinic", "West Los Angeles Vet Center"])
+        self.assertEqual(v["data"]["facilities"][0]["city"], "Los Angeles")
+        self.assertTrue(1000 < v["data"]["facilities"][0]["distance_m"] < 1300)
+        self.assertEqual(v["data"]["tract"], {"veterans": 62, "adults": 3150, "pct": 2.0, "acs_year": "2023", "ms": v["data"]["tract"]["ms"]})
+        self.assertEqual(v["data"]["missing"], {})
+        self.assertTrue(v["headline"].startswith("Los Angeles VA Clinic 1.") and v["headline"].endswith("km \u00b7 62 veterans in this tract"), v["headline"])
+        asked = [p for u, p in self.t.asked if "Veterans_Health" in u][0]
+        self.assertEqual(asked["outFields"], "STA_NAME,S_ADD1,S_CITY,S_STATE,S_ZIP")       # never the staff contact columns
+
+    def test_without_a_census_key_the_tract_is_left_out_not_failed(self):
+        self.use()
+        r = build_report(address=LA)
+        v = r["sections"]["veterans"]["data"]
+        self.assertIsNone(v["tract"])
+        self.assertEqual(v["missing"], {})
+        self.assertFalse([u for u in self.t.calls if "api.census.gov" in u])
+        self.assertNotIn("vets_tract", r["incomplete"])
+
+    def test_a_census_failure_is_named_and_the_sites_still_show(self):
+        self.use(variant={"no-vets"})
+        r = build_report(address=LA, census_key="test")
+        v = r["sections"]["veterans"]
+        self.assertEqual(v["status"], "ok")
+        self.assertEqual(len(v["data"]["facilities"]), 3)
+        self.assertIn("HTTP 503", v["data"]["missing"]["tract"])
+        self.assertIn("vets_tract", r["incomplete"])
+
+    def test_no_va_site_in_range_is_said(self):
+        self.use(variant={"no-va"})
+        v = build_report(address=LA)["sections"]["veterans"]
+        self.assertEqual(v["data"]["facilities"], [])
+        self.assertEqual(v["headline"], "no VA site within 40 km")
+
+    def test_tract_number_must_be_whole(self):
+        self.use()
+        with self.assertRaises(H.SourceError):
+            veterans.tract("0603720", "test")
+        with self.assertRaises(H.SourceError):
+            veterans.tract("06037207307", "")
+
+
+class AssistedHousing(Base):
+    def test_a_neighbor_is_nearby_not_this_building(self):
+        self.use()
+        r = build_report(address=LA)
+        a = r["sections"]["assisted"]
+        self.assertEqual(a["status"], "ok")
+        self.assertEqual(a["data"]["here"], [])
+        n = a["data"]["nearby"][0]
+        self.assertEqual((n["name"], n["manager"], n["score"], n["assisted_units"], n["city"], n["score_date"]),
+                         ("TELACU PLAZA", "TELACU Residential Management, Inc.", "96", 39, "Los Angeles", "2026-02-24"))
+        self.assertTrue(30 < n["distance_m"] < 80)
+        self.assertIsNone(a["data"]["manager"])
+        self.assertEqual(a["headline"], "not on HUD's list of assisted buildings \u00b7 1 within 400 m")
+        self.assertNotIn("assisted_part", r["incomplete"])
+
+    def test_the_building_itself_with_its_manager_and_the_manager_s_other_buildings(self):
+        self.use(variant={"hud-here"})
+        r = build_report(address=LA)
+        a = r["sections"]["assisted"]["data"]
+        self.assertEqual([h["name"] for h in a["here"]], ["SPRING ARMS"])
+        self.assertEqual([h["name"] for h in a["nearby"]], ["TELACU PLAZA"])
+        self.assertEqual(a["manager"]["name"], "O'Neil & Sons Management")
+        self.assertEqual((a["manager"]["properties"], a["manager"]["scored"], a["manager"]["lowest_score"], a["manager"]["under_60"]), (5, 4, 58, 1))
+        where = [p["where"] for u, p in self.t.asked if "MGMT_AGENT_ORG_NAME = " in p.get("where", "")]
+        self.assertEqual(where, ["MGMT_AGENT_ORG_NAME = 'O''Neil & Sons Management'"])
+        self.assertEqual(r["sections"]["assisted"]["headline"], "HUD-assisted: SPRING ARMS \u00b7 managed by O'Neil & Sons Management \u00b7 inspection score 89c*")
+
+    def test_names_of_people_on_hud_s_rows_never_reach_the_report(self):
+        self.use(variant={"hud-here", "insured"})
+        text = json.dumps(build_report(address=LA, census_key="test"))
+        for private in ("TEST PERSON", "TEST CONTACT", "contact@example.org", "PROJECT_MANAGER", "MGMT_CONTACT"):
+            self.assertNotIn(private, text)
+
+    def test_hud_insures_the_mortgage_at_this_address(self):
+        self.use(variant={"insured"})
+        a = build_report(address=LA)["sections"]["assisted"]["data"]
+        self.assertEqual([(i["name"], i["address"]) for i in a["insured_here"]], [("SPRING LOFTS", "548 S Spring Street")])
+
+    def test_the_layer_under_its_other_name_is_used_when_the_first_is_gone(self):
+        self.use(variant={"hud-renamed"})
+        a = build_report(address=LA)["sections"]["assisted"]
+        self.assertEqual(a["status"], "ok")
+        self.assertEqual(a["data"]["nearby"][0]["name"], "TELACU PLAZA")
+        self.assertTrue(assisted._layer.endswith("/HUD_MultiFamily_Assisted/FeatureServer/0"))
+
+    def test_nothing_nearby(self):
+        self.use(variant={"hud-none"})
+        a = build_report(address=LA)["sections"]["assisted"]
+        self.assertEqual((a["data"]["here"], a["data"]["nearby"]), ([], []))
+        self.assertEqual(a["headline"], "not on HUD's list of assisted buildings")
+
+    def test_hud_down_is_said_and_the_report_is_marked_incomplete(self):
+        self.use(fail={"MULTIFAMILY_PROPERTIES_ASSISTED", "HUD_MultiFamily_Assisted"})
+        r = build_report(address=LA)
+        self.assertEqual(r["sections"]["assisted"]["status"], "no_data")
+        self.assertIn("assisted", r["incomplete"])
+
+    def test_same_address(self):
+        same = assisted.same_address
+        self.assertTrue(same("548", "S SPRING ST", "548 South Spring St"))
+        self.assertTrue(same("1000", "S HOPE ST", "1000 S Hope Street"))
+        self.assertFalse(same("1000", "S HOPE ST", "1033 S Hope Street"))
+        self.assertFalse(same("548", "S SPRING ST", "548 S Main St"))
+        self.assertFalse(same(None, "S SPRING ST", "548 S Spring St"))
+        self.assertFalse(same("548", "", "548 S Spring St"))
+        self.assertEqual([assisted.score_int(x) for x in ("89", "89c*", " 100", None, "", "n/a")], [89, 89, 100, None, None, None])
+
+    def test_sources_name_the_new_records(self):
+        self.use()
+        names = " | ".join(s["name"] for s in build_report(address=LA)["sources"])
+        for want in ("LAHD rent-stabilized units by parcel", "HUD Multifamily Properties, Assisted and Insured", "VA medical centers"):
+            self.assertIn(want, names)
+
+
+class GoogleReviews(Base):
+    def test_the_report_never_asks_google(self):
+        self.use()
+        build_report(address=LA, census_key="test")
+        self.assertFalse([u for u in self.t.calls if "googleapis" in u])
+
+    def test_the_apartment_building_at_the_point(self):
+        self.use()
+        out = reviews.lookup(34.0471, -118.2503, "548 S SPRING ST, LOS ANGELES, CA, 90013", "k")
+        p = out["place"]
+        self.assertEqual((out["how"], out["candidates"], p["name"], p["rating"], p["ratings"]), ("nearby", 1, "Spring Street Lofts", 3.6, 41))
+        self.assertTrue(p["distance_m"] < 10)
+        self.assertEqual([(r["author"], r["rating"], r["when"]) for r in p["reviews"]], [("Test Author", 2, "3 months ago"), ("Second Author", 5, "a year ago")])
+        self.assertEqual(p["reviews"][0]["text"], "test review text one")
+        self.assertEqual((len(p["reviews"][1]["text"]), p["reviews"][1]["cut"]), (900, True))
+        url, _ = self.t.asked[-1]
+        self.assertTrue(url.endswith("/v1/places:searchNearby"))
+
+    def test_the_key_travels_in_a_header_never_in_the_address(self):
+        seen = {}
+        real = H.get_json
+        H.get_json = lambda url, params=None, timeout=5.0, data=None, headers=None: (seen.update(url=url, headers=headers, data=data) or ({"places": []}, 1))
+        try:
+            reviews.lookup(34.0, -118.0, None, "SECRET-KEY")
+        finally:
+            H.get_json = real
+        self.assertNotIn("SECRET-KEY", seen["url"])
+        self.assertEqual(seen["headers"]["X-Goog-Api-Key"], "SECRET-KEY")
+        self.assertIn("places.reviews", seen["headers"]["X-Goog-FieldMask"])
+        self.assertEqual(json.loads(seen["data"])["locationRestriction"]["circle"]["radius"], 75.0)
+
+    def test_when_google_does_not_know_those_place_types_the_address_is_searched(self):
+        self.use(variant={"google-old-types"})
+        out = reviews.lookup(34.0471, -118.2503, "548 S SPRING ST, LOS ANGELES, CA, 90013", "k")
+        self.assertEqual((out["how"], out["candidates"], out["place"]["id"]), ("text", 1, "by-text"))      # the one 1.4 km away is dropped
+
+    def test_nothing_near_and_nothing_by_text(self):
+        self.use(variant={"google-none-near"})
+        out = reviews.lookup(34.0471, -118.2503, None, "k")
+        self.assertEqual((out["place"], out["candidates"]), (None, 0))
+
+    def test_a_refusal_is_an_error_not_an_empty_answer(self):
+        self.use(variant={"google-refuses"})
+        with self.assertRaises(H.SourceError) as cm:
+            reviews.lookup(34.0471, -118.2503, "548 S SPRING ST", "k")
+        self.assertIn("HTTP 403", str(cm.exception))
+        with self.assertRaises(H.SourceError):
+            reviews.lookup(34.0471, -118.2503, "548 S SPRING ST", "")
 
 
 if __name__ == "__main__":
