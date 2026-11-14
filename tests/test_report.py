@@ -2,6 +2,7 @@
 import io
 import json
 import os
+import socket
 import sys
 import time
 import unittest
@@ -15,6 +16,27 @@ from n8spotsecrets import build_report  # noqa: E402
 from n8spotsecrets.cli import main as cli_main  # noqa: E402
 from n8spotsecrets.sources import assisted, noise, rentlist, reviews, veterans  # noqa: E402
 from fakes import Transport  # noqa: E402
+
+# Nothing in these tests may leave this machine. Work that a test leaves running in the background can outlive
+# it, so this holds for the whole run: only this machine's own addresses can be looked up or connected to.
+_LOCAL = ("127.0.0.1", "localhost", "::1", "", None)
+_real_lookup, _real_connect = socket.getaddrinfo, socket.socket.connect
+
+
+def _local_lookup(host, *a, **kw):
+    if host not in _LOCAL:
+        raise socket.gaierror("offline test: no lookup of %s" % host)
+    return _real_lookup(host, *a, **kw)
+
+
+def _local_connect(sock, addr):
+    if isinstance(addr, tuple) and addr[0] not in _LOCAL:
+        raise ConnectionRefusedError("offline test: network disabled")
+    return _real_connect(sock, addr)
+
+
+socket.getaddrinfo = _local_lookup
+socket.socket.connect = _local_connect
 
 LA = "548 S Spring St, Los Angeles, CA 90013"
 SM = "1234 4th St, Santa Monica, CA 90401"
@@ -509,6 +531,8 @@ class SharedConnections(Base):
         lock, calls = threading.Lock(), [0]
 
         def fake(host, timeout):
+            if host != self.host:       # background work left by an earlier test: not one of this test's handshakes
+                return real(host, timeout)
             with lock:
                 calls[0] += 1
                 n = calls[0]
