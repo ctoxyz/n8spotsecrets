@@ -13,7 +13,7 @@ Built in Los Angeles for the rentals section of [n8dog.com](https://n8dog.com/re
 The Python package in `n8spotsecrets/` builds a report from live public data
 in a few seconds. It runs on the rentals page of
 [n8dog.com](https://n8dog.com/rentals/): type an address and the report comes
-back. Current version: 0.2.12. The three HTML reports further down are the
+back. Current version: 0.2.13. The three HTML reports further down are the
 hand-built prototypes that set the target.
 
 ## Run it

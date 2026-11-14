@@ -1161,6 +1161,34 @@ class GoogleReviews(Base):
         out = reviews.lookup(34.0471, -118.2503, None, "k")
         self.assertEqual((out["place"], out["candidates"]), (None, 0))
 
+    def test_the_building_across_the_street_is_not_this_building(self):
+        self.use(variant={"google-across-street"})
+        out = reviews.lookup(34.0471, -118.2503, "548 S SPRING ST, LOS ANGELES, CA, 90013", "k")
+        self.assertEqual((out["place"], out["how"], out["candidates"], out["other_address"]), (None, "text", 2, 2))
+
+    def test_the_right_address_is_taken_even_when_another_building_is_nearer(self):
+        self.use(variant={"google-second-is-it"})
+        out = reviews.lookup(34.0471, -118.2503, "548 S SPRING ST, LOS ANGELES, CA, 90013", "k")
+        self.assertEqual((out["place"]["id"], out["how"], out["candidates"], out["other_address"]), ("second", "nearby", 2, 1))
+
+    def test_the_address_search_is_tried_when_only_other_buildings_are_near(self):
+        self.use(variant={"google-text-finds-it"})
+        out = reviews.lookup(34.0471, -118.2503, "548 S SPRING ST, LOS ANGELES, CA, 90013", "k")
+        self.assertEqual((out["place"]["id"], out["how"], out["candidates"], out["other_address"]), ("by-text", "text", 2, 1))
+
+    def test_same_address_goes_by_house_number_and_street(self):
+        same = reviews.same_address
+        self.assertTrue(same("11740 WILSHIRE BLVD, LOS ANGELES, CA, 90025", "11740 Wilshire Blvd, Los Angeles, CA 90025, USA"))
+        self.assertTrue(same("1000 S HOPE ST, LOS ANGELES, CA, 90015", "1000 S Hope St, Los Angeles, CA 90015, USA"))
+        self.assertTrue(same("601 S SAN PEDRO ST, LOS ANGELES, CA", "601 South San Pedro Street #2, Los Angeles, CA"))
+        self.assertFalse(same("548 S SPRING ST, LOS ANGELES, CA, 90013", "541 S Spring St, Los Angeles, CA 90013, USA"))
+        self.assertFalse(same("601 S SAN PEDRO ST, LOS ANGELES, CA, 90014", "600 San Pedro St, Los Angeles, CA 90014, USA"))
+        self.assertFalse(same("453 S SPRING ST, LOS ANGELES, CA, 90013", "416 S Spring St, Los Angeles, CA 90013, USA"))
+        self.assertFalse(same("548 S SPRING ST, LOS ANGELES", "548 S Broadway, Los Angeles, CA"))
+        self.assertFalse(same("548 S SPRING ST", None))
+        self.assertFalse(same(None, "548 S Spring St"))
+        self.assertFalse(same("SPRING ST, LOS ANGELES", "Spring St, Los Angeles"))
+
     def test_a_refusal_is_an_error_not_an_empty_answer(self):
         self.use(variant={"google-refuses"})
         with self.assertRaises(H.SourceError) as cm:

@@ -18,7 +18,7 @@ from . import http as _http
 from .http import SourceError
 from .sources import amenities, assisted, building, cases, connectivity, crime, hazards, noise, people, price, rentlist, street, transit, veterans
 
-VERSION = "0.2.12"
+VERSION = "0.2.13"
 RSO_CUTOFF_YEAR = 1978   # LA RSO: built on or before Oct 1, 1978, 2+ units, in the City of LA
 
 SOURCES = [

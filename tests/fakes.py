@@ -558,7 +558,15 @@ class Transport:
             if url.endswith(":searchNearby"):
                 if "google-old-types" in self.variant:
                     return RuntimeError('HTTP 400 {"error": {"code": 400, "message": "Unsupported types: apartment_complex."}}')
+                across = dict(GOOGLE_PLACE, id="across", displayName={"text": "Arcade Lobby"}, formattedAddress="541 S Spring St, Los Angeles, CA 90013, USA")
+                if "google-across-street" in self.variant or "google-text-finds-it" in self.variant:
+                    return {"places": [across]}
+                if "google-second-is-it" in self.variant:
+                    return {"places": [across, dict(GOOGLE_PLACE, id="second", location={"latitude": 34.04745, "longitude": -118.2503})]}
                 return {} if "google-none-near" in self.variant else {"places": [dict(GOOGLE_PLACE)]}
+            if "google-across-street" in self.variant:
+                return {"places": [dict(GOOGLE_PLACE, id="across", formattedAddress="541 S Spring St, Los Angeles, CA 90013, USA"),
+                                   dict(GOOGLE_PLACE, id="other", formattedAddress="600 Spring St, Los Angeles, CA 90014, USA")]}
             far = dict(GOOGLE_PLACE, id="far", location={"latitude": 34.06, "longitude": -118.25})
             return {"places": [far, dict(GOOGLE_PLACE, id="by-text")]} if "apartments" in body.get("textQuery", "") else {}
         if "api.census.gov" in url:

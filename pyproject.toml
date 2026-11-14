@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "n8spotsecrets"
-version = "0.2.12"
+version = "0.2.13"
 description = "Ask the address, not the listing: an address report for renters from free public data."
 readme = "README.md"
 license = { text = "MIT" }

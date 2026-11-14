@@ -8,9 +8,12 @@ Google's rules, which this module is written around:
   - a review is shown with its author's name next to it, and with Google Maps named as the source
   - at most five reviews come back for a place
 
-Finding the building: apartment-type places within 75 m of the point, nearest first. If Google has none of those
-types there, one text search for the address is tried and anything further than 100 m is dropped."""
+Finding the building: apartment-type places within 75 m of the point, then one text search for the address
+(anything further than 250 m is dropped). A place is used only when Google's own address for it has the house
+number and street that were asked for; the nearest apartment building is often the one across the street, and its
+reviews are about another landlord. With no such place the answer is no place, and the page keeps its links."""
 import json
+import re
 
 from .. import http as _http
 from ..http import SourceError
@@ -20,7 +23,24 @@ TYPES = ["apartment_building", "apartment_complex", "condominium_complex", "hous
 MASK = ("places.id,places.displayName,places.formattedAddress,places.location,places.types,places.rating,"
         "places.userRatingCount,places.googleMapsUri,places.reviews")
 NEAR_M = 75.0
-TEXT_M = 100.0
+TEXT_M = 250.0
+_SKIP = {"N", "S", "E", "W", "NE", "NW", "SE", "SW", "NORTH", "SOUTH", "EAST", "WEST", "ST", "STREET", "AVE", "AVENUE", "BLVD",
+         "BOULEVARD", "DR", "DRIVE", "RD", "ROAD", "PL", "PLACE", "WAY", "LN", "LANE", "CT", "COURT", "TER", "TERRACE", "HWY", "PKWY"}
+
+
+def same_address(asked, google_address):
+    """Is Google's place at the house number and on the street that was asked for? Only the part before the first comma counts."""
+    a = re.findall(r"[A-Z0-9]+", str(asked or "").upper().split(",")[0])
+    g = re.findall(r"[A-Z0-9]+", str(google_address or "").upper().split(",")[0])
+    if not a or not g or not a[0].isdigit() or a[0] != g[0]:
+        return False
+    core = [w for w in a[1:] if w not in _SKIP]
+    return bool(core) and all(w in g[1:] for w in core)
+
+
+def _pick(places, address):
+    ok = sorted((p for p in places if same_address(address, p.get("address"))), key=lambda p: (p["distance_m"] is None, p["distance_m"] or 0))
+    return ([p for p in ok if p.get("ratings")] or ok or [None])[0]
 
 
 def _post(method, body, key, timeout):
@@ -50,7 +70,9 @@ def _place(p, lat, lon):
 
 
 def lookup(lat, lon, address, key, timeout=4.0):
-    """-> {place: {...} or None, candidates, how, ms}. Raises SourceError when Google does not answer or refuses."""
+    """-> {place: {...} or None, candidates, other_address, how, ms}. Raises SourceError when Google does not answer or refuses.
+
+    candidates: places Google returned in reach; other_address: how many of them are at another address and were not used."""
     if not key:
         raise SourceError("no Google key")
     circle = {"circle": {"center": {"latitude": float(lat), "longitude": float(lon)}, "radius": NEAR_M}}
@@ -61,12 +83,14 @@ def lookup(lat, lon, address, key, timeout=4.0):
     except SourceError as e:
         if "HTTP 400" not in str(e):
             raise
-    if not places and address:
+    place = _pick(places, address)
+    if place is None and address:
         how = "text"
-        circle["circle"]["radius"] = 2 * TEXT_M
+        circle["circle"]["radius"] = TEXT_M
         j, ms2 = _post("searchText", {"textQuery": "%s apartments" % address, "maxResultCount": 5, "locationBias": circle}, key, timeout)
         ms += ms2
-        places = [p for p in (_place(x, lat, lon) for x in (j.get("places") or [])) if p["distance_m"] is not None and p["distance_m"] <= TEXT_M]
-    places.sort(key=lambda p: (p["distance_m"] is None, p["distance_m"] or 0))
-    rated = [p for p in places if p.get("ratings")]
-    return {"place": (rated or places or [None])[0], "candidates": len(places), "how": how, "ms": ms}
+        seen = {p.get("id") for p in places}
+        more = [p for p in (_place(x, lat, lon) for x in (j.get("places") or [])) if p["distance_m"] is not None and p["distance_m"] <= TEXT_M]
+        places += [p for p in more if p.get("id") not in seen]
+        place = _pick(more, address)
+    return {"place": place, "candidates": len(places), "other_address": len([p for p in places if not same_address(address, p.get("address"))]), "how": how, "ms": ms}
